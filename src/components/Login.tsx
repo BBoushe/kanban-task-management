@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { useAuth } from '@/app/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
+import GoogleLoginButton from './authentication/GoogleLoginButton';
 
 export default function Login() {
     const [email, setEmail] = useState("");
@@ -16,7 +17,7 @@ export default function Login() {
 
         try{
             await login(email, password); // this is called from the AuthContext within the context of this component passed as AuthContext
-            router.push("/");
+            router.push("/home");
         } catch (err: any) {
             switch (err.code) {
                 case "auth/user-not-found":
@@ -66,6 +67,8 @@ export default function Login() {
             </button>
           </div>
         </form>
+        <div className="my-1 text-center text-gray-400"><small>or</small></div>
+            <GoogleLoginButton>Login with Google</GoogleLoginButton>
       </div>
     );
 }

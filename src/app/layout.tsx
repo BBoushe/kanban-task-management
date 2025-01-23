@@ -1,8 +1,8 @@
-import type { Metadata } from "next";
-import Link from 'next/link';
-import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import type { Metadata } from "next";
+import { Geist, Geist_Mono } from "next/font/google";
 import { AuthProvider} from '@/app/contexts/AuthContext';
+import Header from "@/components/Header";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -30,22 +30,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <AuthProvider>
-        <header className="m-3 bg-gray-200 rounded p-4 flex justify-between items-center">
-            <h1>
-              <Link href="/" className="logo">
-                Trello Clone
-              </Link>
-            </h1>
-            <div className="flex space-x-4">
-              {/* Navigation links for Login and Register */}
-              <Link href="/login" className="btn-secondary">
-                Login
-              </Link>
-              <Link href="/register" className="btn-primary">
-                Register
-              </Link>
-            </div>
-          </header>
+          <Header/>
           <main className="m-3 bg-gray-100 rounded">{children}</main>
         </AuthProvider>
       </body>

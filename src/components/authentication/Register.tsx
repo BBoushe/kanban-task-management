@@ -1,16 +1,18 @@
 'use client';
 import { useState } from 'react';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, updateProfile, getAuth } from 'firebase/auth';
 import { auth } from '@/app/utils/firebaseConfig';
 import { useRouter } from 'next/navigation';
 import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
 import { registrationSchema } from '@/app/utils/validationSchema';
+import GoogleLoginButton from './GoogleLoginButton';
 
 type FormData = {
     email: string;
     password: string;
+    username: string;
 };
 
 
@@ -36,8 +38,15 @@ export default function Register() {
         setSuccess(false);
 
         try {
-            await createUserWithEmailAndPassword(auth, data.email, data.password);
+            const userCredidential = await createUserWithEmailAndPassword(auth, data.email, data.password);
+            const user = userCredidential.user;
+
             setSuccess(true);
+            await updateProfile(user, { displayName: data.username });
+
+            const currAuth = getAuth();
+            const currentUserInfo = currAuth.currentUser;
+            console.log(currentUserInfo);
             router.push("/login");
         } catch (err: any) {
             switch (err.code) {
@@ -65,6 +74,14 @@ export default function Register() {
             )}
         <form onSubmit={handleSubmit(handleRegister)}>
           <div className="grid gap-2">
+            {/* Username Input */}
+            <input 
+                type='text' 
+                placeholder='Username' 
+                className={`rounded border p-2 w-full ${errors.username ? "border-red-500" : "border-gray-300"}`}
+                {...register("username")}
+            />
+            {errors.username && (<p className='text-red-500 text-sm'>{errors.username.message}</p>)} 
             {/* Email Input */}
             <input
               type="email"
@@ -91,6 +108,8 @@ export default function Register() {
             </button>
           </div>
         </form>
+        <div className="my-1 text-center text-gray-400"><small>or</small></div>
+            <GoogleLoginButton>Register with Google</GoogleLoginButton>
       </div>
     );
 }

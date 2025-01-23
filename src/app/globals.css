@@ -37,3 +37,8 @@ body {
     @apply bg-red-500 text-white font-bold py-3 px-4 rounded;
   }
 }
+
+.btn-google {
+  @apply flex items-center justify-center space-x-2 rounded px-4 py-2;
+  @apply bg-red-500 text-white hover:bg-red-600;
+}

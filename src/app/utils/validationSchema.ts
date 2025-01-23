@@ -16,4 +16,8 @@ export const registrationSchema = yup.object().shape({
     .matches(/[A-Z]/, "Password must contain at least one uppercase letter")
     .matches(/[a-z]/, "Password must contain at least one lowercase letter")
     .matches(/[0-9]/, "Password must contain at least one number"),
+  username: yup
+      .string()
+      .min(6, "Username must be at least 6 characters")
+      .required("Username is required"),
 });

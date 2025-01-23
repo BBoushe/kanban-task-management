@@ -2,7 +2,7 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { auth } from '@/app/utils/firebaseConfig';
-import { experimentalSetDeliveryMetricsExportedToBigQueryEnabled } from 'firebase/messaging/sw';
+import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
 
 type AuthContextType = {
     user: User | null;
@@ -18,26 +18,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
+        // use onAuthStateChanged to listen to authentication state change
         const unsubscribe = onAuthStateChanged(auth, (user) => {
             setUser(user);
             setLoading(false);
         });
+        // clean up after unmount
+        // in react unmounting means when the component is no longer being rendered i.e. when the user logs out we no 
+        // longer need to render the header thus it's unmounted
         return () => unsubscribe();
     }, []);
 
     const login = async (email: string, password: string) => {
-        const { signInWithEmailAndPassword } = await import("firebase/auth");
         await signInWithEmailAndPassword(auth, email, password);
     };
 
     const logout = async () => {
-        const { signOut } = await import("firebase/auth");
         await signOut(auth);
     };
 
     return (
     <AuthContext.Provider value={{ user, loading, login, logout }}>
-        {!loading && children}
+        {children}
     </AuthContext.Provider>
     );
 }

@@ -30,7 +30,7 @@ export default function Board() {
     return (
         <div className="flex gap-4">
             {columns.map(column => (
-                <Column key={column.id} {...column} setCards={setCards} cards={cards.filter(card => card.columnId === column.id)}/>
+            <Column key={column.id} {...column} setCards={setCards} cards={cards.filter(card => card.columnId === column.id)}/>
             ))}
             <FormColumn/>
         </div>
