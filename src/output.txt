@@ -1,0 +1,1991 @@
+app/home/page.tsx:
+"'use client';
+
+import ProtectedRoute from "@/components/ProtectedRoute"
+import Link from "next/link";
+import { useAuth } from "../contexts/AuthContext";
+import { useEffect, useState } from "react";
+import { fetchBoards } from "../actions/boardActions";
+
+
+export default function HomePage() {
+    const { user } = useAuth();
+    const [boards, setBoards] = useState<any[]>([]);
+
+    useEffect(() => {
+        if (user) {
+            fetchBoards(user.uid).then(setBoards); // fetch boards for the logged in user then set the state to be those boards
+        }
+    }, [user]); 
+
+    return(
+        <ProtectedRoute>
+        <div>
+            <h1 className="text-4xl mb-4">My Boards</h1>
+            <hr />
+
+            <Link className="btn-primary inline-block" href={'/create-board'}>
+                Create new Board &rarr;
+            </Link>
+
+            {/* Displaying users' boards */}
+            <div className="mt-6 grid gap-4">
+                {boards.map(board => (
+                    <Link key={board.id} href={`/users/${user?.uid}/boards/${board.id}`} className="block p-4 border rounded shadow hover:bg-gray-100">
+                        {board.name}
+                    </Link>
+                ))}
+            </div>
+        </div>
+        </ProtectedRoute>
+    );
+}"
+
+
+app/contexts/AuthContext.tsx:
+"'use client';
+import { createContext, useContext, useEffect, useState } from 'react';
+import { onAuthStateChanged, User } from 'firebase/auth';
+import { auth } from '@/app/utils/firebaseConfig';
+import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
+
+type AuthContextType = {
+    user: User | null;
+    loading: boolean;
+    login: (email: string, password: string) => Promise<void>;
+    logout: () => Promise<void>;
+};
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+    const [user, setUser] = useState<User | null>(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        // use onAuthStateChanged to listen to authentication state change
+        const unsubscribe = onAuthStateChanged(auth, (user) => {
+            setUser(user);
+            setLoading(false);
+        });
+        // clean up after unmount
+        // in react unmounting means when the component is no longer being rendered i.e. when the user logs out we no 
+        // longer need to render the header thus it's unmounted
+        return () => unsubscribe();
+    }, []);
+
+    const login = async (email: string, password: string) => {
+        await signInWithEmailAndPassword(auth, email, password);
+    };
+
+    const logout = async () => {
+        await signOut(auth);
+    };
+
+    return (
+    <AuthContext.Provider value={{ user, loading, login, logout }}>
+        {children}
+    </AuthContext.Provider>
+    );
+}
+
+export function useAuth() {
+    const context = useContext(AuthContext);
+    if(!context) {
+        throw new Error("[DEV Message]: useAuth must be used within an AuthProvider");
+    }
+    return context;
+}"
+
+app/board/page.tsx:
+"import Board from "@/components/Board";
+import ProtectedRoute from "@/components/ProtectedRoute";
+// if this has problems surround board with ProtectedRoute
+
+export default function LoginPage() {
+    return (
+       <Board/>
+    );
+}"
+
+app/utils/validationSchema.ts:
+"import * as yup from "yup";
+
+export const registrationSchema = yup.object().shape({
+  email: yup
+    .string()
+    .email("Invalid email format")
+    .required("Email is required")
+    .matches(
+        /^[a-zA-Z0-9._-]+@[a-zA-Z]+\.[a-zA-Z]+$/,
+        "Invalid email format"
+      ),
+  password: yup
+    .string()
+    .min(8, "Password must be at least 8 characters")
+    .required("Password is required")
+    .matches(/[A-Z]/, "Password must contain at least one uppercase letter")
+    .matches(/[a-z]/, "Password must contain at least one lowercase letter")
+    .matches(/[0-9]/, "Password must contain at least one number"),
+  username: yup
+      .string()
+      .min(6, "Username must be at least 6 characters")
+      .required("Username is required"),
+});"
+
+app/utils/firebaseConfig.ts:
+"// Import the functions you need from the SDKs you need
+import { initializeApp, getApps, getApp } from "firebase/app";
+import { getAuth, GoogleAuthProvider } from 'firebase/auth';
+import { getFirestore } from "firebase/firestore";
+
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  omitted for obvious reasons from this chat, but are present in my actual project
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const googleProvider = new GoogleAuthProvider();
+const db = getFirestore(app);
+
+export { auth, googleProvider, db };"
+
+app/register/page.tsx:
+"import Register from '@/components/authentication/Register';
+
+export default function RegisterPage() {
+    return <Register/>;
+}"
+
+app/create-board/page.tsx:
+"'use client';
+
+
+import { useAuth } from "../contexts/AuthContext";
+import { useRouter } from "next/navigation";
+import { createBoard } from "../actions/boardActions";
+import { getAuth } from 'firebase/auth';
+
+export default function () {
+    // const { user } = useAuth(); // fetch current user authentication
+    const auth = getAuth();
+    const user = auth.currentUser;
+    const router = useRouter();
+
+    async function handleSubmit(formData: FormData) {
+        const boardName = formData.get('name')?.toString() || ''; // makes ts happy because we control such that if it's not a string or it's undefined we make sure it's a string, function definition will prevent it anyways
+        const boardDescription = formData.get('description')?.toString() || '';
+
+        // Ensure user is authenticated
+        if (!user) {
+            throw new Error("User must be authenticated to create a board.");
+        }
+
+        // create board in firestore
+        const { id } = await createBoard(user.uid, boardName, boardDescription);
+        router.push(`users/${user.uid}/boards/${id}`);
+    }
+
+    return (
+        <div>
+            <form action={handleSubmit} className="max-w-xs block">
+                <h1 className="text-2xl mb-3">Create new board</h1>
+                <input type="text" name="name" placeholder="Board name" className="rounded"/>
+                <input type="text" name="description" placeholder="Brief description" className="text-base my-2 rounded"/>
+                {/* <textarea id="w3review" name="w3review" rows={3} className="text-base my-2 rounded" placeholder="Board description"></textarea> */}
+                <button type="submit" className="btn-primary mt-1">Create board</button>
+            </form>
+        </div>
+    );
+}"
+
+app/layout.tsx:
+"import "./globals.css";
+import type { Metadata } from "next";
+import { Geist, Geist_Mono } from "next/font/google";
+import { AuthProvider} from '@/app/contexts/AuthContext';
+import Header from "@/components/Header";
+
+const geistSans = Geist({
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
+});
+
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
+
+export const metadata: Metadata = {
+  title: "Create Next App",
+  description: "Generated by create next app",
+};
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  return (
+    <html lang="en">
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+      >
+        <AuthProvider>
+          <Header/>
+          <main className="m-3 bg-gray-100 rounded">{children}</main>
+        </AuthProvider>
+      </body>
+    </html>
+  );
+}"
+
+app/users/[userId]/boards/[boardId]/page.tsx:
+"// this is an optional page and this means that we can change the layout of board specific pages
+// I'm not going to implement this right now because I don't think this is the main purpose of the project
+// The use case here can be that while in "work mode" we might use a different layout than the main pages i.e. when we're inside a
+// board we might like to put the header somewhere differently, we might want to add additioanl sections than the ones in the app etc.
+
+
+// IMPORTANT: the dynamic routting has to be set up exactly like the collection in firebase
+import React from 'react';
+import BoardClient from '@/components/boards/BoardClient';
+
+type BoardPageProps = {
+    params: Promise<{
+        userId: string;
+        boardId: string; // will be used to specify dynamic board route
+    }>;
+};
+
+export default async function BoardPage({ params }: BoardPageProps) {
+    const { userId, boardId } = React.use(params);
+    console.log("Dynamic route params:", { userId, boardId });
+    
+    return (
+        <BoardClient userId={userId} boardId={boardId}/>
+    )
+}"
+
+app/actions/boardActions.ts:
+"import { db } from '@/app/utils/firebaseConfig';
+import { getDocs, addDoc, collection, serverTimestamp, doc, getDoc } from 'firebase/firestore';
+
+type CreateBoardResult = {
+    id: string;
+};
+
+export type Board = {
+    id: string;
+    name: string;
+    description: string;
+    createdAt: any;
+}
+
+export async function createBoard(userId:string, name: string, description: string) : Promise<CreateBoardResult> {
+    // reference of boards subcollection for userId, under users collection
+    const boardsCollection = collection(db, `users/${userId}/boards`);
+
+    try {
+        // add new board document to firestore
+        const docRef = await addDoc(boardsCollection, {
+            name,
+            description,
+            createdAt: serverTimestamp(), // creation timestamp 
+        });
+        console.log("Document written with ID: ", docRef.id);
+
+        return { id: docRef.id }; // return new board ID
+      } catch (e) {
+        console.error("Error adding document: ", e);
+        throw new Error("Failed to create board. Please try again later.")
+      }
+
+}
+
+export async function fetchBoards(userId: string) : Promise<Board[]> {
+    const boardCollection = collection(db, `users/${userId}/boards`);
+    const snapshot = await getDocs(boardCollection); // snapshot querry result from Firestore that 
+    // contains metadata and data of the collection we're trying to fetch
+
+    return snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(), // spread rest of the document data as defined in Board
+    })) as Board[];
+}
+
+// export async function getBoard(userId: string, boardId: string) : Promise<Board> {
+//     // document reference so we can fetch it below
+//     const docRef = doc(db, `/users/${userId}/boards/${boardId}`);
+//     const docSnap = await getDoc(docRef);
+
+//     if(!docSnap.exists()) {
+//         throw new Error("No such board found.");
+//     }
+
+//     return {
+//         id: boardId,
+//         ...(docSnap.data() as Omit<Board, 'id'>), // ensure it matches the Board type with Omit
+//     }
+// }
+
+export async function getBoard(userId: string, boardId: string): Promise<Board> {
+    const docRef = doc(db, `/users/${userId}/boards/${boardId}`); // Correct Firestore path
+    console.log("Fetching document from Firestore path:", docRef.path);
+
+    const docSnap = await getDoc(docRef);
+
+    if (!docSnap.exists()) {
+        console.error(`No document found at path: ${docRef.path}`);
+        throw new Error("No such board found.");
+    }
+
+    return {
+        id: boardId,
+        ...(docSnap.data() as Omit<Board, 'id'>), // Spread the data and ensure it matches the Board type
+    };
+}"
+
+app/page.tsx:
+"'use client';
+import LandingPage from "@/components/views/LandingPage";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
+import { useAuth } from '@/app/contexts/AuthContext';
+
+
+export default function Home() {
+  const { user, loading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if(!loading && user) {
+      router.push('/board');
+    }
+  }, [user,loading, router]);
+
+  if(loading) return <p>Loading...</p>
+
+  return <LandingPage/>;
+}"
+
+app/globals.css:
+"@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* :root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: Arial, Helvetica, sans-serif;
+} */
+
+@layer components {
+  .btn-primary {
+    @apply bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-700;
+  }
+
+  .btn-secondary {
+    @apply bg-gray-500 text-white py-2 px-4 rounded hover:bg-gray-700;
+  }
+
+  .card {
+    @apply bg-white shadow-lg rounded p-6;
+  }
+
+  .alert {
+    @apply bg-red-500 text-white font-bold py-3 px-4 rounded;
+  }
+}
+
+.btn-google {
+  @apply flex items-center justify-center space-x-2 rounded px-4 py-2;
+  @apply bg-red-500 text-white hover:bg-red-600;
+}"
+
+app/login/page.tsx:
+"import Login from '@/components/Login';
+
+export default function LoginPage() {
+    return <Login/>;
+}"
+
+
+components/forms/FormColumn.tsx:
+"'use client';
+import { FormEvent } from "react";
+
+// we explicitly mark a component to be a client component ('use client') as opposed to server component 
+// because we rely on browser(client) specific interactivity e.g. onSubmit.
+
+
+export default function FormColumn() {
+
+    function handleNewColumn(event: FormEvent) {
+        event.preventDefault();
+
+        // Downcasting here since TypeScript treats event.target as EventTarget, so we're specifying it's type directly
+        // So the 'as' keyword basically works in the following way, we're telling the TS compiler that "trust me I know this is of type X"
+        // So we're explicitly telling the TS compiler that this var is of type X, so we can use querySelector without having type safety issues
+        // the EventTarget doesn't have querySelector on the prototype chain so regular JS would just go down the prototype chain until it finds it
+        // but as we know this can cause runtime errors so TS says "nope can't do that until I know it's definetely there"
+        // In short 'as' is used for downcasting or upcasting
+        const input = (event.target as HTMLFormElement).querySelector('input');
+        const columnName = input?.value;
+    }
+
+    return (
+        <form  onSubmit={handleNewColumn} className="w-80 p-4 border-gray-300 rounded-md shadow bg-white">
+            <div className="grid gap-2">
+                <label htmlFor="columnName">
+                    <span className="text-gray-600">Column Name:</span>
+                </label>
+
+                <input type="text" id="columnName" placeholder="Column Name" className="rounded border border-gray-300 p-2 w-full"/>
+                <button type="submit" className="btn-primary w-full">Create Column</button>
+            </div>
+        </form>  
+    );
+}"
+
+components/ProtectedRoute.tsx:
+"'use client';
+import { useAuth } from '@/app/contexts/AuthContext';
+import { useRouter } from "next/navigation";
+import { useEffect } from 'react';
+
+export default function ProtectedRoute({ children }: { children: React.ReactNode }) {
+    const { user, loading } = useAuth();
+    const router = useRouter();
+
+    useEffect(() => {
+        if(!loading && !user) {
+            router.push("/");
+        }
+    }, [user, loading, router]);
+
+    if (loading || !user) return <p>Loading...</p>;
+
+    return <>{children}</>;
+}"
+
+components/Login.tsx:
+"'use client';
+import { useState } from 'react';
+import { useAuth } from '@/app/contexts/AuthContext';
+import { useRouter } from 'next/navigation';
+import GoogleLoginButton from './authentication/GoogleLoginButton';
+
+export default function Login() {
+    const [email, setEmail] = useState("");
+    const [password, setPassword] = useState("");
+    const [error, setError] = useState<string | null>(null);
+    const { login } = useAuth();
+    const router = useRouter();
+
+    async function handleLogin(event: React.FormEvent) {
+        event.preventDefault();
+        setError(null);
+
+        try{
+            await login(email, password); // this is called from the AuthContext within the context of this component passed as AuthContext
+            router.push("/home");
+        } catch (err: any) {
+            switch (err.code) {
+                case "auth/user-not-found":
+                  setError("No account found with this email. Please register or try a different email.");
+                  break;
+                case "auth/invalid-credential":
+                  setError("Incorrect password. Please try again.");
+                  break;
+                case "auth/invalid-email":
+                  setError("The email address is not valid. Please check and try again.");
+                  break;
+                case "auth/too-many-requests":
+                  setError("Too many login attempts. Please try again later.");
+                  break;
+                default:
+                  setError("An unexpected error occurred. Please try again later.");
+                  console.log(err.code);
+                  break;
+              }
+        }
+    }
+
+    return (
+        <div className="w-80 p-6 mx-auto mt-10 bg-white rounded shadow">
+        <h1 className="text-xl font-bold mb-4">Login</h1>
+        {error && <p className="text-red-500 mb-4">{error}</p>}
+        <form onSubmit={handleLogin}>
+          <div className="grid gap-2">
+            <input
+              type="email"
+              placeholder="Email"
+              className="rounded border p-2 w-full"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+            <input
+              type="password"
+              placeholder="Password"
+              className="rounded border p-2 w-full"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+            <button type="submit" className="btn-primary w-full">
+              Login
+            </button>
+          </div>
+        </form>
+        <div className="my-1 text-center text-gray-400"><small>or</small></div>
+            <GoogleLoginButton>Login with Google</GoogleLoginButton>
+      </div>
+    );
+}"
+
+components/Board.tsx:
+"'use client';
+import Column from './Column';
+import FormColumn from "./forms/FormColumn";
+import { useState } from 'react';
+
+const defaultColumns: {id:string, name:string, idx:number}[] = [
+    {id: 'asdf', name: 'todo', idx: 0},
+    {id: 'fdas', name: 'todo1', idx: 1},
+    {id: 'gfaf', name: 'todo2', idx: 2},
+];
+
+export type CardType = {
+    id: string | number;
+    name: string;
+    order: number;
+    columnId: string
+}
+
+const defaultCards: CardType[] = [
+    {id: "fdafd", name: "task 1", order:0, columnId: 'asdf'},
+    {id: "alksd", name: "task 2", order:1, columnId: 'fdas'},
+    {id: "cvagh", name: "task 3", order:2, columnId: 'gfaf'},
+    {id: "dacaz", name: "task 4", order:3, columnId: 'gfaf'},
+]
+
+export default function Board() {
+    const [cards, setCards] = useState(defaultCards);
+    const [columns, setColumns] = useState(defaultColumns);
+
+    return (
+        <div className="flex gap-4">
+            {columns.map(column => (
+            <Column key={column.id} {...column} setCards={setCards} cards={cards.filter(card => card.columnId === column.id)}/>
+            ))}
+            <FormColumn/>
+        </div>
+    );
+}"
+
+components/boards/BoardClient.tsx:
+"// this is the client part of the dynamic boardId page which is supposed to render on client
+'use client';
+
+import { useEffect, useState } from 'react';
+import { getAuth } from 'firebase/auth';
+import { getBoard } from '@/app/actions/boardActions';
+import { Board as BoardType } from '@/app/actions/boardActions';
+import Loading from '@/components/Loading';
+
+type BoardClientProps = {
+    userId: string,
+    boardId: string,
+};
+
+export default function BoardClient({ userId, boardId } : BoardClientProps) {
+    const [board, setBoard] = useState<BoardType | null>(null);
+    const [loading, setLoading] = useState<boolean>(true);
+    const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        const auth = getAuth();
+        const user = auth.currentUser || '';
+
+        if (!user || typeof user === "string") {
+            setError('User not authenticated. Please log in.');
+            setLoading(false);
+            return;
+        }
+
+        async function fetchBoard() {
+            try {
+                const boardData = await getBoard(userId, boardId);
+                setBoard(boardData);
+            } catch (err) {
+                console.error("Failed to fetch board: ", err);
+                setError("Board not found, or failed to fetch");
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        fetchBoard();
+    }, [userId, boardId]);
+
+    if(loading) return <Loading/>;
+
+    if(error) return <p>{error}</p>;
+
+    if(!board) return <p>Board not found</p>;
+
+    return (
+        <div>
+            <h1 className="text-4xl mb-4">{board.name}</h1>
+            <p className="text-gray-600">{board.description}</p>
+            <hr />
+            <p className="text-sm text-gray-500">
+                Created on: {new Date(board.createdAt.seconds * 1000).toLocaleDateString()}
+            </p>
+        </div>
+    );
+
+}"
+
+components/Header.tsx:
+"'use client';
+import Link from 'next/link';
+import LogoutButton from './authentication/LogoutButton';
+import { getAuth } from 'firebase/auth';
+import { useAuth } from '@/app/contexts/AuthContext';
+
+export default function Header() {
+    const auth = getAuth();
+    const { loading }  = useAuth();
+    const user = auth.currentUser;
+
+    if(loading || !auth) return null;
+
+        return (
+            <>
+            {user && (<header className="m-3 bg-gray-500 rounded p-4 flex justify-between items-center text-white">
+                <h1 className="text-2xl font-bold">
+                  <Link href="/home" className="logo hover:underline">
+                    Trello Clone
+                  </Link>
+                </h1>
+                <div className="flex space-x-4 items-center">
+                  {/* Display Name */}
+                  {user?.displayName && <span className='font-medium mx-2'>Hi, {user?.displayName}</span>}
+                  <LogoutButton/>
+                </div>
+            </header>)}
+            </>
+        );
+}"
+
+components/Loading.tsx:
+"export default function Loading() {
+    return (
+        <p>Loading...</p>
+    );
+}"
+
+components/views/LandingPage.tsx:
+"'use client'
+import Link from 'next/link';
+
+export default function LandingPage() {
+    return (
+        <div className="min-h-screen bg-gray-100 flex flex-col justify-center items-center">
+            <div className="text-center">
+                <h1 className="text-6xl font-bold mb-6 text-gray-800">Trello Clone</h1>
+                <h2 className="text-2xl font-medium mb-10 text-gray-600">For MVP Masters Projects</h2>
+                <div className="flex space-x-6 justify-center mb-8">
+                    <Link href="/login">
+                        <button className="btn-primary text-lg px-8 py-4">Login</button>
+                    </Link>
+                    <Link href="/register">
+                        <button className="btn-secondary text-lg px-8 py-4">Register</button>
+                    </Link>
+                </div>
+                <div className="flex flex-col space-y-2">
+                    <a href="https://github.com/" target="_blank" rel="noopener noreferrer" className="text-blue-500 underline">
+                        GitHub Repository
+                    </a>
+                    <a href="https://www.linkedin.com/" target="_blank" rel="noopener noreferrer" className="text-blue-500 underline">
+                        LinkedIn Profile
+                    </a>
+                </div>
+            </div>
+        </div>
+    );
+}"
+
+components/authentication/LogoutButton.tsx:
+"import { useAuth } from '@/app/contexts/AuthContext';
+import { useRouter } from 'next/navigation';
+
+export default function LogoutButton() {
+    const { logout } = useAuth();
+    const router = useRouter();
+
+    const handleLogout = async () => {
+        await logout();
+        router.push('/');
+    }
+
+    return (
+        <button
+            onClick={handleLogout}
+            className="text-white bg-red-500 px-4 py-2 rounded hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2"
+        >
+            Log Out
+        </button>
+        // <Link href={'/'} onClick={logout} className='text-white bg-red-500 px-4 py-2 rounded hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2'>
+        //     Logout
+        // </Link>
+    );
+}"
+
+components/authentication/Register.tsx:
+"'use client';
+import { useState } from 'react';
+import { createUserWithEmailAndPassword, updateProfile, getAuth } from 'firebase/auth';
+import { auth } from '@/app/utils/firebaseConfig';
+import { useRouter } from 'next/navigation';
+import { useForm } from "react-hook-form";
+import { yupResolver } from "@hookform/resolvers/yup";
+import * as yup from "yup";
+import { registrationSchema } from '@/app/utils/validationSchema';
+import GoogleLoginButton from './GoogleLoginButton';
+
+type FormData = {
+    email: string;
+    password: string;
+    username: string;
+};
+
+
+export default function Register() {
+    const [email, setEmail] = useState("");
+    const [password, setPassword] = useState("");
+    const [error, setError] = useState<string | null>(null);
+    const [success, setSuccess] = useState(false);
+    const router = useRouter();
+
+    // Hook into react-hook-form and use yup schema validation
+    const {
+        register,
+        handleSubmit,
+        formState: { errors },
+    } = useForm<FormData>({
+        resolver: yupResolver(registrationSchema),
+    });
+
+    async function handleRegister(data: FormData) {
+        console.log("Form data submitted:", data);
+        setError(null);
+        setSuccess(false);
+
+        try {
+            const userCredidential = await createUserWithEmailAndPassword(auth, data.email, data.password);
+            const user = userCredidential.user;
+
+            setSuccess(true);
+            await updateProfile(user, { displayName: data.username });
+
+            const currAuth = getAuth();
+            const currentUserInfo = currAuth.currentUser;
+            console.log(currentUserInfo);
+            router.push("/login");
+        } catch (err: any) {
+            switch (err.code) {
+                case "auth/email-already-in-use":
+                    setError("The email address is already registered. Please use a different email or log in.");
+                    break;
+                case "auth/weak-password":
+                    setError("The password is too weak. Please use a stronger password.");
+                    break;
+                default:
+                    setError("An unexpected error occurred. Please try again later.");
+                    break;
+            }
+        }
+    }
+
+    return (
+        <div className="w-80 p-6 mx-auto mt-10 bg-white rounded shadow">
+        <h1 className="text-xl font-bold mb-4">Register</h1>
+        {error && <p className="text-red-500 mb-4">{error}</p>}
+        {success && (
+            <p className="text-green-500 mb-4">
+                Registration successful! You can log in now.
+            </p>
+            )}
+        <form onSubmit={handleSubmit(handleRegister)}>
+          <div className="grid gap-2">
+            {/* Username Input */}
+            <input 
+                type='text' 
+                placeholder='Username' 
+                className={`rounded border p-2 w-full ${errors.username ? "border-red-500" : "border-gray-300"}`}
+                {...register("username")}
+            />
+            {errors.username && (<p className='text-red-500 text-sm'>{errors.username.message}</p>)} 
+            {/* Email Input */}
+            <input
+              type="email"
+              placeholder="Email"
+              className={`rounded border p-2 w-full ${errors.email ? "border-red-500" : "border-gray-300"}`}
+              {...register("email")}
+            />
+            {errors.email && (
+                <p className='text-red-500 text-sm'>{errors.email.message}</p>
+            )}
+            {/* Password Input */}
+            <input
+              type="password"
+              placeholder="Password"
+              className={`rounded border p-2 w-full ${errors.password ? "border-red-500" : "border-gray-300"}`}
+              {...register("password")}
+            />
+            {errors.password && (
+                <p className='text-red-500 text-sm'>{errors.password.message}</p>
+            )}
+            {/* Submit Button */}
+            <button type="submit" className="btn-primary w-full">
+              Register
+            </button>
+          </div>
+        </form>
+        <div className="my-1 text-center text-gray-400"><small>or</small></div>
+            <GoogleLoginButton>Register with Google</GoogleLoginButton>
+      </div>
+    );
+}"
+
+components/authentication/GoogleLoginButton.tsx:
+"'use client'
+import { signInWithPopup, updateProfile } from 'firebase/auth';
+import { auth, googleProvider } from '@/app/utils/firebaseConfig';
+import { useRouter } from 'next/navigation';
+
+export default function GoogleLoginButton({ children }:any){
+    const router = useRouter();
+
+    async function handleGoogleLoign() {
+        try {
+            const userCredential = await signInWithPopup(auth, googleProvider);
+            const user =userCredential.user;
+
+            // if user doesn't have a display name, derive one from email
+            if (!user.displayName && user.email) {
+                const username = user.email.split('@')[0];
+                await updateProfile(user, { displayName: username });
+            }
+            
+            router.push('/home');
+        } catch (error) {
+            console.error('Google login failed: ', error);
+        }
+    }
+
+    return (
+        <button onClick={handleGoogleLoign} type='button' className="btn-google w-full text-white bg-red-500 py-2 rounded">
+            {children}
+        </button>
+    );
+}"
+
+components/Column.tsx:
+"import { ReactSortable } from "react-sortablejs";
+import { CardType } from "./Board";
+import { SetStateAction } from "react";
+
+// this is called type alias and is used to define the shape or the data types of the props in the component
+// you can use an interface here as well, but using type alias is not only common practice but also offers more flexibility because of
+// the ability to define complex types like union or intersection and also serve a specific puspose
+// interfaces can be inherited while types cannot 
+type ColumnProps = {
+    id: string;
+    name: string;
+    idx: number;
+    cards: CardType[];
+    setCards: SetStateAction<any>;
+}
+
+export default function Column({ id, name, cards, setCards }: ColumnProps) {
+    function setCardsForColumn(sortedCards: CardType[], newColumnId: string) {
+        setCards((prevCards: CardType[]) => {
+            const unsortedCards = [...prevCards]; // destruct with spread and give us the prev state
+            
+            sortedCards.forEach((sortedCard: CardType, newOrder: number) => {
+                const foundCard = unsortedCards.find((card) => card.id === sortedCard.id)
+                if(foundCard) {
+                    foundCard.columnId = newColumnId;
+                    foundCard.order = newOrder; // update the new position
+                }
+            });
+            
+            return unsortedCards.sort((a,b) => {
+                if(a.columnId === b.columnId) {
+                    return a.order - b.order;
+                }
+                return 0;
+            });
+            // return the new processed cards, sorted by order so the reordering works, as the new state of the cards
+            // which is being called when anythin in the ReactSortable changes, specifically on the list of cards 
+        });
+    }
+
+    return (
+        <div className="w-48 shadow-md bg-white rounded-md p-4">
+            <h3>{name}</h3>
+            <ReactSortable 
+                list={cards} 
+                setList={(updatedCards) => setCardsForColumn(updatedCards, id)} 
+                group="cards"
+                className="min-h-32 p-1 flex flex-col space-y-1"
+                ghostClass="opacity-30"
+            >
+                {cards.map(card => (
+                    <div key={card.id} className="border bg-white my-2 p-4 rounded-md">
+                        <span>{card.name}</span>
+                    </div>
+                ))}
+            </ReactSortable>
+        </div>
+    );
+}"
+
+output.txt:
+"app/home/page.tsx:
+"'use client';
+
+import ProtectedRoute from "@/components/ProtectedRoute"
+import Link from "next/link";
+import { useAuth } from "../contexts/AuthContext";
+import { useEffect, useState } from "react";
+import { fetchBoards } from "../actions/boardActions";
+
+
+export default function HomePage() {
+    const { user } = useAuth();
+    const [boards, setBoards] = useState<any[]>([]);
+
+    useEffect(() => {
+        if (user) {
+            fetchBoards(user.uid).then(setBoards); // fetch boards for the logged in user then set the state to be those boards
+        }
+    }, [user]); 
+
+    return(
+        <ProtectedRoute>
+        <div>
+            <h1 className="text-4xl mb-4">My Boards</h1>
+            <hr />
+
+            <Link className="btn-primary inline-block" href={'/create-board'}>
+                Create new Board &rarr;
+            </Link>
+
+            {/* Displaying users' boards */}
+            <div className="mt-6 grid gap-4">
+                {boards.map(board => (
+                    <Link key={board.id} href={`/users/${user?.uid}/boards/${board.id}`} className="block p-4 border rounded shadow hover:bg-gray-100">
+                        {board.name}
+                    </Link>
+                ))}
+            </div>
+        </div>
+        </ProtectedRoute>
+    );
+}"
+
+
+app/contexts/AuthContext.tsx:
+"'use client';
+import { createContext, useContext, useEffect, useState } from 'react';
+import { onAuthStateChanged, User } from 'firebase/auth';
+import { auth } from '@/app/utils/firebaseConfig';
+import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
+
+type AuthContextType = {
+    user: User | null;
+    loading: boolean;
+    login: (email: string, password: string) => Promise<void>;
+    logout: () => Promise<void>;
+};
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+    const [user, setUser] = useState<User | null>(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        // use onAuthStateChanged to listen to authentication state change
+        const unsubscribe = onAuthStateChanged(auth, (user) => {
+            setUser(user);
+            setLoading(false);
+        });
+        // clean up after unmount
+        // in react unmounting means when the component is no longer being rendered i.e. when the user logs out we no 
+        // longer need to render the header thus it's unmounted
+        return () => unsubscribe();
+    }, []);
+
+    const login = async (email: string, password: string) => {
+        await signInWithEmailAndPassword(auth, email, password);
+    };
+
+    const logout = async () => {
+        await signOut(auth);
+    };
+
+    return (
+    <AuthContext.Provider value={{ user, loading, login, logout }}>
+        {children}
+    </AuthContext.Provider>
+    );
+}
+
+export function useAuth() {
+    const context = useContext(AuthContext);
+    if(!context) {
+        throw new Error("[DEV Message]: useAuth must be used within an AuthProvider");
+    }
+    return context;
+}"
+
+app/board/page.tsx:
+"import Board from "@/components/Board";
+import ProtectedRoute from "@/components/ProtectedRoute";
+// if this has problems surround board with ProtectedRoute
+
+export default function LoginPage() {
+    return (
+       <Board/>
+    );
+}"
+
+app/utils/validationSchema.ts:
+"import * as yup from "yup";
+
+export const registrationSchema = yup.object().shape({
+  email: yup
+    .string()
+    .email("Invalid email format")
+    .required("Email is required")
+    .matches(
+        /^[a-zA-Z0-9._-]+@[a-zA-Z]+\.[a-zA-Z]+$/,
+        "Invalid email format"
+      ),
+  password: yup
+    .string()
+    .min(8, "Password must be at least 8 characters")
+    .required("Password is required")
+    .matches(/[A-Z]/, "Password must contain at least one uppercase letter")
+    .matches(/[a-z]/, "Password must contain at least one lowercase letter")
+    .matches(/[0-9]/, "Password must contain at least one number"),
+  username: yup
+      .string()
+      .min(6, "Username must be at least 6 characters")
+      .required("Username is required"),
+});"
+
+app/utils/firebaseConfig.ts:
+"// Import the functions you need from the SDKs you need
+import { initializeApp, getApps, getApp } from "firebase/app";
+import { getAuth, GoogleAuthProvider } from 'firebase/auth';
+import { getFirestore } from "firebase/firestore";
+
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyBvYAR62pOtrTfs9IRXTAMlwhixzlxfJZo",
+  authDomain: "trello-clone-mvp.firebaseapp.com",
+  projectId: "trello-clone-mvp",
+  storageBucket: "trello-clone-mvp.firebasestorage.app",
+  messagingSenderId: "737415636352",
+  appId: "1:737415636352:web:0080c66a40b7c568524d65",
+  measurementId: "G-V18JNBNJ94"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const googleProvider = new GoogleAuthProvider();
+const db = getFirestore(app);
+
+export { auth, googleProvider, db };"
+
+app/register/page.tsx:
+"import Register from '@/components/authentication/Register';
+
+export default function RegisterPage() {
+    return <Register/>;
+}"
+
+app/create-board/page.tsx:
+"'use client';
+
+
+import { useAuth } from "../contexts/AuthContext";
+import { useRouter } from "next/navigation";
+import { createBoard } from "../actions/boardActions";
+import { getAuth } from 'firebase/auth';
+
+export default function () {
+    // const { user } = useAuth(); // fetch current user authentication
+    const auth = getAuth();
+    const user = auth.currentUser;
+    const router = useRouter();
+
+    async function handleSubmit(formData: FormData) {
+        const boardName = formData.get('name')?.toString() || ''; // makes ts happy because we control such that if it's not a string or it's undefined we make sure it's a string, function definition will prevent it anyways
+        const boardDescription = formData.get('description')?.toString() || '';
+
+        // Ensure user is authenticated
+        if (!user) {
+            throw new Error("User must be authenticated to create a board.");
+        }
+
+        // create board in firestore
+        const { id } = await createBoard(user.uid, boardName, boardDescription);
+        router.push(`users/${user.uid}/boards/${id}`);
+    }
+
+    return (
+        <div>
+            <form action={handleSubmit} className="max-w-xs block">
+                <h1 className="text-2xl mb-3">Create new board</h1>
+                <input type="text" name="name" placeholder="Board name" className="rounded"/>
+                <input type="text" name="description" placeholder="Brief description" className="text-base my-2 rounded"/>
+                {/* <textarea id="w3review" name="w3review" rows={3} className="text-base my-2 rounded" placeholder="Board description"></textarea> */}
+                <button type="submit" className="btn-primary mt-1">Create board</button>
+            </form>
+        </div>
+    );
+}"
+
+app/layout.tsx:
+"import "./globals.css";
+import type { Metadata } from "next";
+import { Geist, Geist_Mono } from "next/font/google";
+import { AuthProvider} from '@/app/contexts/AuthContext';
+import Header from "@/components/Header";
+
+const geistSans = Geist({
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
+});
+
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
+
+export const metadata: Metadata = {
+  title: "Create Next App",
+  description: "Generated by create next app",
+};
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  return (
+    <html lang="en">
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+      >
+        <AuthProvider>
+          <Header/>
+          <main className="m-3 bg-gray-100 rounded">{children}</main>
+        </AuthProvider>
+      </body>
+    </html>
+  );
+}"
+
+app/users/[userId]/boards/[boardId]/page.tsx:
+"// this is an optional page and this means that we can change the layout of board specific pages
+// I'm not going to implement this right now because I don't think this is the main purpose of the project
+// The use case here can be that while in "work mode" we might use a different layout than the main pages i.e. when we're inside a
+// board we might like to put the header somewhere differently, we might want to add additioanl sections than the ones in the app etc.
+
+
+// IMPORTANT: the dynamic routting has to be set up exactly like the collection in firebase
+import React from 'react';
+import BoardClient from '@/components/boards/BoardClient';
+
+type BoardPageProps = {
+    params: Promise<{
+        userId: string;
+        boardId: string; // will be used to specify dynamic board route
+    }>;
+};
+
+export default async function BoardPage({ params }: BoardPageProps) {
+    const { userId, boardId } = React.use(params);
+    console.log("Dynamic route params:", { userId, boardId });
+    
+    return (
+        <BoardClient userId={userId} boardId={boardId}/>
+    )
+}"
+
+app/actions/boardActions.ts:
+"import { db } from '@/app/utils/firebaseConfig';
+import { getDocs, addDoc, collection, serverTimestamp, doc, getDoc } from 'firebase/firestore';
+
+type CreateBoardResult = {
+    id: string;
+};
+
+export type Board = {
+    id: string;
+    name: string;
+    description: string;
+    createdAt: any;
+}
+
+export async function createBoard(userId:string, name: string, description: string) : Promise<CreateBoardResult> {
+    // reference of boards subcollection for userId, under users collection
+    const boardsCollection = collection(db, `users/${userId}/boards`);
+
+    try {
+        // add new board document to firestore
+        const docRef = await addDoc(boardsCollection, {
+            name,
+            description,
+            createdAt: serverTimestamp(), // creation timestamp 
+        });
+        console.log("Document written with ID: ", docRef.id);
+
+        return { id: docRef.id }; // return new board ID
+      } catch (e) {
+        console.error("Error adding document: ", e);
+        throw new Error("Failed to create board. Please try again later.")
+      }
+
+}
+
+export async function fetchBoards(userId: string) : Promise<Board[]> {
+    const boardCollection = collection(db, `users/${userId}/boards`);
+    const snapshot = await getDocs(boardCollection); // snapshot querry result from Firestore that 
+    // contains metadata and data of the collection we're trying to fetch
+
+    return snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(), // spread rest of the document data as defined in Board
+    })) as Board[];
+}
+
+// export async function getBoard(userId: string, boardId: string) : Promise<Board> {
+//     // document reference so we can fetch it below
+//     const docRef = doc(db, `/users/${userId}/boards/${boardId}`);
+//     const docSnap = await getDoc(docRef);
+
+//     if(!docSnap.exists()) {
+//         throw new Error("No such board found.");
+//     }
+
+//     return {
+//         id: boardId,
+//         ...(docSnap.data() as Omit<Board, 'id'>), // ensure it matches the Board type with Omit
+//     }
+// }
+
+export async function getBoard(userId: string, boardId: string): Promise<Board> {
+    const docRef = doc(db, `/users/${userId}/boards/${boardId}`); // Correct Firestore path
+    console.log("Fetching document from Firestore path:", docRef.path);
+
+    const docSnap = await getDoc(docRef);
+
+    if (!docSnap.exists()) {
+        console.error(`No document found at path: ${docRef.path}`);
+        throw new Error("No such board found.");
+    }
+
+    return {
+        id: boardId,
+        ...(docSnap.data() as Omit<Board, 'id'>), // Spread the data and ensure it matches the Board type
+    };
+}"
+
+app/page.tsx:
+"'use client';
+import LandingPage from "@/components/views/LandingPage";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
+import { useAuth } from '@/app/contexts/AuthContext';
+
+
+export default function Home() {
+  const { user, loading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if(!loading && user) {
+      router.push('/board');
+    }
+  }, [user,loading, router]);
+
+  if(loading) return <p>Loading...</p>
+
+  return <LandingPage/>;
+}"
+
+app/globals.css:
+"@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* :root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: Arial, Helvetica, sans-serif;
+} */
+
+@layer components {
+  .btn-primary {
+    @apply bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-700;
+  }
+
+  .btn-secondary {
+    @apply bg-gray-500 text-white py-2 px-4 rounded hover:bg-gray-700;
+  }
+
+  .card {
+    @apply bg-white shadow-lg rounded p-6;
+  }
+
+  .alert {
+    @apply bg-red-500 text-white font-bold py-3 px-4 rounded;
+  }
+}
+
+.btn-google {
+  @apply flex items-center justify-center space-x-2 rounded px-4 py-2;
+  @apply bg-red-500 text-white hover:bg-red-600;
+}"
+
+app/login/page.tsx:
+"import Login from '@/components/Login';
+
+export default function LoginPage() {
+    return <Login/>;
+}"
+
+script.sh:
+"#!/usr/bin/env bash
+
+# Usage:
+#   ./collect-files.sh /path/to/folder /path/to/output.txt
+
+# The first argument is the folder to scan
+FOLDER="$1"
+# The second argument is the file in which we want to append the output
+OUTPUT_FILE="$2"
+
+# Clear or create the output file
+> "$OUTPUT_FILE"
+
+# Use 'find' to list all files (not directories) within $FOLDER
+# Then read each file path line by line.
+while IFS= read -r FILE; do
+  
+  # Make sure it is indeed a file, not something else
+  if [[ -f "$FILE" ]]; then
+    # Derive the relative path by removing the leading "$FOLDER/"
+    RELATIVE_PATH="${FILE#$FOLDER/}"
+    
+    # Append the relative path to the output file
+    echo "$RELATIVE_PATH:" >> "$OUTPUT_FILE"
+    
+    # Append the contents in quotes. 
+    # NOTE: This will just wrap everything in one big set of quotes.
+    # If the file has internal double quotes, that may interfere, so be cautious.
+    echo "\"$(cat "$FILE")\"" >> "$OUTPUT_FILE"
+    
+    # Optionally, add a blank line after each entry for readability
+    echo >> "$OUTPUT_FILE"
+  fi
+
+done < <(find "$FOLDER" -type f)"
+
+components/forms/FormColumn.tsx:
+"'use client';
+import { FormEvent } from "react";
+
+// we explicitly mark a component to be a client component ('use client') as opposed to server component 
+// because we rely on browser(client) specific interactivity e.g. onSubmit.
+
+
+export default function FormColumn() {
+
+    function handleNewColumn(event: FormEvent) {
+        event.preventDefault();
+
+        // Downcasting here since TypeScript treats event.target as EventTarget, so we're specifying it's type directly
+        // So the 'as' keyword basically works in the following way, we're telling the TS compiler that "trust me I know this is of type X"
+        // So we're explicitly telling the TS compiler that this var is of type X, so we can use querySelector without having type safety issues
+        // the EventTarget doesn't have querySelector on the prototype chain so regular JS would just go down the prototype chain until it finds it
+        // but as we know this can cause runtime errors so TS says "nope can't do that until I know it's definetely there"
+        // In short 'as' is used for downcasting or upcasting
+        const input = (event.target as HTMLFormElement).querySelector('input');
+        const columnName = input?.value;
+    }
+
+    return (
+        <form  onSubmit={handleNewColumn} className="w-80 p-4 border-gray-300 rounded-md shadow bg-white">
+            <div className="grid gap-2">
+                <label htmlFor="columnName">
+                    <span className="text-gray-600">Column Name:</span>
+                </label>
+
+                <input type="text" id="columnName" placeholder="Column Name" className="rounded border border-gray-300 p-2 w-full"/>
+                <button type="submit" className="btn-primary w-full">Create Column</button>
+            </div>
+        </form>  
+    );
+}"
+
+components/ProtectedRoute.tsx:
+"'use client';
+import { useAuth } from '@/app/contexts/AuthContext';
+import { useRouter } from "next/navigation";
+import { useEffect } from 'react';
+
+export default function ProtectedRoute({ children }: { children: React.ReactNode }) {
+    const { user, loading } = useAuth();
+    const router = useRouter();
+
+    useEffect(() => {
+        if(!loading && !user) {
+            router.push("/");
+        }
+    }, [user, loading, router]);
+
+    if (loading || !user) return <p>Loading...</p>;
+
+    return <>{children}</>;
+}"
+
+components/Login.tsx:
+"'use client';
+import { useState } from 'react';
+import { useAuth } from '@/app/contexts/AuthContext';
+import { useRouter } from 'next/navigation';
+import GoogleLoginButton from './authentication/GoogleLoginButton';
+
+export default function Login() {
+    const [email, setEmail] = useState("");
+    const [password, setPassword] = useState("");
+    const [error, setError] = useState<string | null>(null);
+    const { login } = useAuth();
+    const router = useRouter();
+
+    async function handleLogin(event: React.FormEvent) {
+        event.preventDefault();
+        setError(null);
+
+        try{
+            await login(email, password); // this is called from the AuthContext within the context of this component passed as AuthContext
+            router.push("/home");
+        } catch (err: any) {
+            switch (err.code) {
+                case "auth/user-not-found":
+                  setError("No account found with this email. Please register or try a different email.");
+                  break;
+                case "auth/invalid-credential":
+                  setError("Incorrect password. Please try again.");
+                  break;
+                case "auth/invalid-email":
+                  setError("The email address is not valid. Please check and try again.");
+                  break;
+                case "auth/too-many-requests":
+                  setError("Too many login attempts. Please try again later.");
+                  break;
+                default:
+                  setError("An unexpected error occurred. Please try again later.");
+                  console.log(err.code);
+                  break;
+              }
+        }
+    }
+
+    return (
+        <div className="w-80 p-6 mx-auto mt-10 bg-white rounded shadow">
+        <h1 className="text-xl font-bold mb-4">Login</h1>
+        {error && <p className="text-red-500 mb-4">{error}</p>}
+        <form onSubmit={handleLogin}>
+          <div className="grid gap-2">
+            <input
+              type="email"
+              placeholder="Email"
+              className="rounded border p-2 w-full"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+            <input
+              type="password"
+              placeholder="Password"
+              className="rounded border p-2 w-full"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+            <button type="submit" className="btn-primary w-full">
+              Login
+            </button>
+          </div>
+        </form>
+        <div className="my-1 text-center text-gray-400"><small>or</small></div>
+            <GoogleLoginButton>Login with Google</GoogleLoginButton>
+      </div>
+    );
+}"
+
+components/Board.tsx:
+"'use client';
+import Column from './Column';
+import FormColumn from "./forms/FormColumn";
+import { useState } from 'react';
+
+const defaultColumns: {id:string, name:string, idx:number}[] = [
+    {id: 'asdf', name: 'todo', idx: 0},
+    {id: 'fdas', name: 'todo1', idx: 1},
+    {id: 'gfaf', name: 'todo2', idx: 2},
+];
+
+export type CardType = {
+    id: string | number;
+    name: string;
+    order: number;
+    columnId: string
+}
+
+const defaultCards: CardType[] = [
+    {id: "fdafd", name: "task 1", order:0, columnId: 'asdf'},
+    {id: "alksd", name: "task 2", order:1, columnId: 'fdas'},
+    {id: "cvagh", name: "task 3", order:2, columnId: 'gfaf'},
+    {id: "dacaz", name: "task 4", order:3, columnId: 'gfaf'},
+]
+
+export default function Board() {
+    const [cards, setCards] = useState(defaultCards);
+    const [columns, setColumns] = useState(defaultColumns);
+
+    return (
+        <div className="flex gap-4">
+            {columns.map(column => (
+            <Column key={column.id} {...column} setCards={setCards} cards={cards.filter(card => card.columnId === column.id)}/>
+            ))}
+            <FormColumn/>
+        </div>
+    );
+}"
+
+components/boards/BoardClient.tsx:
+"// this is the client part of the dynamic boardId page which is supposed to render on client
+'use client';
+
+import { useEffect, useState } from 'react';
+import { getAuth } from 'firebase/auth';
+import { getBoard } from '@/app/actions/boardActions';
+import { Board as BoardType } from '@/app/actions/boardActions';
+import Loading from '@/components/Loading';
+
+type BoardClientProps = {
+    userId: string,
+    boardId: string,
+};
+
+export default function BoardClient({ userId, boardId } : BoardClientProps) {
+    const [board, setBoard] = useState<BoardType | null>(null);
+    const [loading, setLoading] = useState<boolean>(true);
+    const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        const auth = getAuth();
+        const user = auth.currentUser || '';
+
+        if (!user || typeof user === "string") {
+            setError('User not authenticated. Please log in.');
+            setLoading(false);
+            return;
+        }
+
+        async function fetchBoard() {
+            try {
+                const boardData = await getBoard(userId, boardId);
+                setBoard(boardData);
+            } catch (err) {
+                console.error("Failed to fetch board: ", err);
+                setError("Board not found, or failed to fetch");
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        fetchBoard();
+    }, [userId, boardId]);
+
+    if(loading) return <Loading/>;
+
+    if(error) return <p>{error}</p>;
+
+    if(!board) return <p>Board not found</p>;
+
+    return (
+        <div>
+            <h1 className="text-4xl mb-4">{board.name}</h1>
+            <p className="text-gray-600">{board.description}</p>
+            <hr />
+            <p className="text-sm text-gray-500">
+                Created on: {new Date(board.createdAt.seconds * 1000).toLocaleDateString()}
+            </p>
+        </div>
+    );
+
+}"
+
+components/Header.tsx:
+"'use client';
+import Link from 'next/link';
+import LogoutButton from './authentication/LogoutButton';
+import { getAuth } from 'firebase/auth';
+import { useAuth } from '@/app/contexts/AuthContext';
+
+export default function Header() {
+    const auth = getAuth();
+    const { loading }  = useAuth();
+    const user = auth.currentUser;
+
+    if(loading || !auth) return null;
+
+        return (
+            <>
+            {user && (<header className="m-3 bg-gray-500 rounded p-4 flex justify-between items-center text-white">
+                <h1 className="text-2xl font-bold">
+                  <Link href="/home" className="logo hover:underline">
+                    Trello Clone
+                  </Link>
+                </h1>
+                <div className="flex space-x-4 items-center">
+                  {/* Display Name */}
+                  {user?.displayName && <span className='font-medium mx-2'>Hi, {user?.displayName}</span>}
+                  <LogoutButton/>
+                </div>
+            </header>)}
+            </>
+        );
+}"
+
+components/Loading.tsx:
+"export default function Loading() {
+    return (
+        <p>Loading...</p>
+    );
+}"
+
+components/views/LandingPage.tsx:
+"'use client'
+import Link from 'next/link';
+
+export default function LandingPage() {
+    return (
+        <div className="min-h-screen bg-gray-100 flex flex-col justify-center items-center">
+            <div className="text-center">
+                <h1 className="text-6xl font-bold mb-6 text-gray-800">Trello Clone</h1>
+                <h2 className="text-2xl font-medium mb-10 text-gray-600">For MVP Masters Projects</h2>
+                <div className="flex space-x-6 justify-center mb-8">
+                    <Link href="/login">
+                        <button className="btn-primary text-lg px-8 py-4">Login</button>
+                    </Link>
+                    <Link href="/register">
+                        <button className="btn-secondary text-lg px-8 py-4">Register</button>
+                    </Link>
+                </div>
+                <div className="flex flex-col space-y-2">
+                    <a href="https://github.com/" target="_blank" rel="noopener noreferrer" className="text-blue-500 underline">
+                        GitHub Repository
+                    </a>
+                    <a href="https://www.linkedin.com/" target="_blank" rel="noopener noreferrer" className="text-blue-500 underline">
+                        LinkedIn Profile
+                    </a>
+                </div>
+            </div>
+        </div>
+    );
+}"
+
+components/authentication/LogoutButton.tsx:
+"import { useAuth } from '@/app/contexts/AuthContext';
+import { useRouter } from 'next/navigation';
+
+export default function LogoutButton() {
+    const { logout } = useAuth();
+    const router = useRouter();
+
+    const handleLogout = async () => {
+        await logout();
+        router.push('/');
+    }
+
+    return (
+        <button
+            onClick={handleLogout}
+            className="text-white bg-red-500 px-4 py-2 rounded hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2"
+        >
+            Log Out
+        </button>
+        // <Link href={'/'} onClick={logout} className='text-white bg-red-500 px-4 py-2 rounded hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2'>
+        //     Logout
+        // </Link>
+    );
+}"
+
+components/authentication/Register.tsx:
+"'use client';
+import { useState } from 'react';
+import { createUserWithEmailAndPassword, updateProfile, getAuth } from 'firebase/auth';
+import { auth } from '@/app/utils/firebaseConfig';
+import { useRouter } from 'next/navigation';
+import { useForm } from "react-hook-form";
+import { yupResolver } from "@hookform/resolvers/yup";
+import * as yup from "yup";
+import { registrationSchema } from '@/app/utils/validationSchema';
+import GoogleLoginButton from './GoogleLoginButton';
+
+type FormData = {
+    email: string;
+    password: string;
+    username: string;
+};
+
+
+export default function Register() {
+    const [email, setEmail] = useState("");
+    const [password, setPassword] = useState("");
+    const [error, setError] = useState<string | null>(null);
+    const [success, setSuccess] = useState(false);
+    const router = useRouter();
+
+    // Hook into react-hook-form and use yup schema validation
+    const {
+        register,
+        handleSubmit,
+        formState: { errors },
+    } = useForm<FormData>({
+        resolver: yupResolver(registrationSchema),
+    });
+
+    async function handleRegister(data: FormData) {
+        console.log("Form data submitted:", data);
+        setError(null);
+        setSuccess(false);
+
+        try {
+            const userCredidential = await createUserWithEmailAndPassword(auth, data.email, data.password);
+            const user = userCredidential.user;
+
+            setSuccess(true);
+            await updateProfile(user, { displayName: data.username });
+
+            const currAuth = getAuth();
+            const currentUserInfo = currAuth.currentUser;
+            console.log(currentUserInfo);
+            router.push("/login");
+        } catch (err: any) {
+            switch (err.code) {
+                case "auth/email-already-in-use":
+                    setError("The email address is already registered. Please use a different email or log in.");
+                    break;
+                case "auth/weak-password":
+                    setError("The password is too weak. Please use a stronger password.");
+                    break;
+                default:
+                    setError("An unexpected error occurred. Please try again later.");
+                    break;
+            }
+        }
+    }
+
+    return (
+        <div className="w-80 p-6 mx-auto mt-10 bg-white rounded shadow">
+        <h1 className="text-xl font-bold mb-4">Register</h1>
+        {error && <p className="text-red-500 mb-4">{error}</p>}
+        {success && (
+            <p className="text-green-500 mb-4">
+                Registration successful! You can log in now.
+            </p>
+            )}
+        <form onSubmit={handleSubmit(handleRegister)}>
+          <div className="grid gap-2">
+            {/* Username Input */}
+            <input 
+                type='text' 
+                placeholder='Username' 
+                className={`rounded border p-2 w-full ${errors.username ? "border-red-500" : "border-gray-300"}`}
+                {...register("username")}
+            />
+            {errors.username && (<p className='text-red-500 text-sm'>{errors.username.message}</p>)} 
+            {/* Email Input */}
+            <input
+              type="email"
+              placeholder="Email"
+              className={`rounded border p-2 w-full ${errors.email ? "border-red-500" : "border-gray-300"}`}
+              {...register("email")}
+            />
+            {errors.email && (
+                <p className='text-red-500 text-sm'>{errors.email.message}</p>
+            )}
+            {/* Password Input */}
+            <input
+              type="password"
+              placeholder="Password"
+              className={`rounded border p-2 w-full ${errors.password ? "border-red-500" : "border-gray-300"}`}
+              {...register("password")}
+            />
+            {errors.password && (
+                <p className='text-red-500 text-sm'>{errors.password.message}</p>
+            )}
+            {/* Submit Button */}
+            <button type="submit" className="btn-primary w-full">
+              Register
+            </button>
+          </div>
+        </form>
+        <div className="my-1 text-center text-gray-400"><small>or</small></div>
+            <GoogleLoginButton>Register with Google</GoogleLoginButton>
+      </div>
+    );
+}"
+
+components/authentication/GoogleLoginButton.tsx:
+"'use client'
+import { signInWithPopup, updateProfile } from 'firebase/auth';
+import { auth, googleProvider } from '@/app/utils/firebaseConfig';
+import { useRouter } from 'next/navigation';
+
+export default function GoogleLoginButton({ children }:any){
+    const router = useRouter();
+
+    async function handleGoogleLoign() {
+        try {
+            const userCredential = await signInWithPopup(auth, googleProvider);
+            const user =userCredential.user;
+
+            // if user doesn't have a display name, derive one from email
+            if (!user.displayName && user.email) {
+                const username = user.email.split('@')[0];
+                await updateProfile(user, { displayName: username });
+            }
+            
+            router.push('/home');
+        } catch (error) {
+            console.error('Google login failed: ', error);
+        }
+    }
+
+    return (
+        <button onClick={handleGoogleLoign} type='button' className="btn-google w-full text-white bg-red-500 py-2 rounded">
+            {children}
+        </button>
+    );
+}"
+
+components/Column.tsx:
+"import { ReactSortable } from "react-sortablejs";
+import { CardType } from "./Board";
+import { SetStateAction } from "react";
+
+// this is called type alias and is used to define the shape or the data types of the props in the component
+// you can use an interface here as well, but using type alias is not only common practice but also offers more flexibility because of
+// the ability to define complex types like union or intersection and also serve a specific puspose
+// interfaces can be inherited while types cannot 
+type ColumnProps = {
+    id: string;
+    name: string;
+    idx: number;
+    cards: CardType[];
+    setCards: SetStateAction<any>;
+}
+
+export default function Column({ id, name, cards, setCards }: ColumnProps) {
+    function setCardsForColumn(sortedCards: CardType[], newColumnId: string) {
+        setCards((prevCards: CardType[]) => {
+            const unsortedCards = [...prevCards]; // destruct with spread and give us the prev state
+            
+            sortedCards.forEach((sortedCard: CardType, newOrder: number) => {
+                const foundCard = unsortedCards.find((card) => card.id === sortedCard.id)
+                if(foundCard) {
+                    foundCard.columnId = newColumnId;
+                    foundCard.order = newOrder; // update the new position
+                }
+            });
+            
+            return unsortedCards.sort((a,b) => {
+                if(a.columnId === b.columnId) {
+                    return a.order - b.order;
+                }
+                return 0;
+            });
+            // return the new processed cards, sorted by order so the reordering works, as the new state of the cards
+            // which is being called when anythin in the ReactSortable changes, specifically on the list of cards 
+        });
+    }
+
+    return (
+        <div className="w-48 shadow-md bg-white rounded-md p-4">
+            <h3>{name}</h3>
+            <ReactSortable 
+                list={cards} 
+                setList={(updatedCards) => setCardsForColumn(updatedCards, id)} 
+                group="cards"
+                className="min-h-32 p-1 flex flex-col space-y-1"
+                ghostClass="opacity-30"
+            >
+                {cards.map(card => (
+                    <div key={card.id} className="border bg-white my-2 p-4 rounded-md">
+                        <span>{card.name}</span>
+                    </div>
+                ))}
+            </ReactSortable>
+        </div>
+    );
+}"
+
+output.txt:"
+

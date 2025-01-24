@@ -23,7 +23,7 @@ export default function () {
 
         // create board in firestore
         const { id } = await createBoard(user.uid, boardName, boardDescription);
-        router.push(`/boards/${id}`);
+        router.push(`users/${user.uid}/boards/${id}`);
     }
 
     return (

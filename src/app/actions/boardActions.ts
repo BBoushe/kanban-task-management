@@ -1,11 +1,11 @@
 import { db } from '@/app/utils/firebaseConfig';
-import { getDocs, addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { getDocs, addDoc, collection, serverTimestamp, doc, getDoc } from 'firebase/firestore';
 
 type CreateBoardResult = {
     id: string;
 };
 
-type Board = {
+export type Board = {
     id: string;
     name: string;
     description: string;
@@ -42,4 +42,19 @@ export async function fetchBoards(userId: string) : Promise<Board[]> {
         id: doc.id,
         ...doc.data(), // spread rest of the document data as defined in Board
     })) as Board[];
+}
+
+export async function getBoard(userId: string, boardId: string) : Promise<Board> {
+    // document reference so we can fetch it below
+    const docRef = doc(db, `/users/${userId}/boards/${boardId}`);
+    const docSnap = await getDoc(docRef);
+
+    if(!docSnap.exists()) {
+        throw new Error("No such board found.");
+    }
+
+    return {
+        id: boardId,
+        ...(docSnap.data() as Omit<Board, 'id'>), // ensure it matches the Board type with Omit
+    }
 }

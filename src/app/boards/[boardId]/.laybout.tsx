@@ -1,4 +1,0 @@
-// this is an optional page and this means that we can change the layout of board specific pages
-// I'm not going to implement this right now because I don't think this is the main purpose of the project
-// The use case here can be that while in "work mode" we might use a different layout than the main pages i.e. when we're inside a
-// board we might like to put the header somewhere differently, we might want to add additioanl sections than the ones in the app etc.

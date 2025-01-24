@@ -30,7 +30,7 @@ export default function HomePage() {
             {/* Displaying users' boards */}
             <div className="mt-6 grid gap-4">
                 {boards.map(board => (
-                    <Link key={board.id} href={`boards/${board.id}`} className="block p-4 border rounded shadow hover:bg-gray-100">
+                    <Link key={board.id} href={`/users/${user?.uid}/boards/${board.id}`} className="block p-4 border rounded shadow hover:bg-gray-100">
                         {board.name}
                     </Link>
                 ))}
