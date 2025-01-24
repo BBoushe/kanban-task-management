@@ -3,8 +3,10 @@
 
 // Object imports
 import { useEffect, useState } from 'react';
-import { getBoard } from '@/app/actions/boardActions';
-import { Board as BoardType } from '@/app/actions/boardActions';
+import { getBoard, Board as BoardType} from '@/app/actions/boardActions';
+import { getColumns, Column } from '@/app/actions/boardActions';
+import { getCards, Card } from '@/app/actions/boardActions';
+
 // Component imports
 import Loading from '@/components/Loading';
 import Board from '../Board';
@@ -16,41 +18,58 @@ type BoardClientProps = {
 
 export default function BoardClient({ userId, boardId } : BoardClientProps) {
     const [board, setBoard] = useState<BoardType | null>(null);
+    const [columns, setColumns] = useState<Column[]>([]);
+    const [cards, setCards] = useState<Card[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-        async function fetchBoard() {
+        async function fetchData() {
+            setLoading(true);
             try {
                 const boardData = await getBoard(userId, boardId);
+                const columnData = await getColumns(userId, boardId);
+                const cardsData = await getCards(userId, boardId);
+
                 setBoard(boardData);
+                setColumns(columnData);
+                setCards(cardsData);
             } catch (err) {
-                console.error("Failed to fetch board: ", err);
-                setError("Board not found, or failed to fetch");
+                console.error("Failed to fetch data for board: ", err);
+                setError("Failed to fetch data for board in BoardClient.");
             } finally {
                 setLoading(false);
             }
         }
 
-        fetchBoard();
+        fetchData();
     }, [userId, boardId]);
 
     if(loading) return <Loading/>;
-
     if(error) return <p>{error}</p>;
-
-    if(!board) return <p className='centered'>Board not found</p>;
+    if(!board) return <p>Board not found</p>;
 
     return (
         <div>
-            <h1 className="text-4xl mb-4">{board.name}</h1>
-            <p className="text-gray-600">{board.description}</p>
-            <hr />
-            <p className="text-sm text-gray-500">
-                Created on: {new Date(board.createdAt.seconds * 1000).toLocaleDateString()}
-            </p>
-            <Board/>
-        </div>
+      {/* The board info at the top */}
+      <h1 className="text-4xl mb-4">{board.name}</h1>
+      <p className="text-gray-600">{board.description}</p>
+      <hr />
+      <p className="text-sm text-gray-500">
+        Created on:{" "}
+        {new Date(board.createdAt.seconds * 1000).toLocaleDateString()}
+      </p>
+
+      <section className="mt-8">
+        <Board
+          board={board} 
+          userId={userId}
+          boardId={boardId}
+          columns={columns}
+          cards={cards} 
+        />
+      </section>
+    </div>
     );
 
 }

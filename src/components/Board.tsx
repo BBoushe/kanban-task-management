@@ -1,38 +1,37 @@
 'use client';
 import Column from './Column';
 import FormColumn from "./forms/FormColumn";
+import { Board as BoardType, Card, Column as ColumnType } from '@/app/actions/boardActions';
 import { useState } from 'react';
 
-const defaultColumns: {id:string, name:string, idx:number}[] = [
-    {id: 'asdf', name: 'todo', idx: 0},
-    {id: 'fdas', name: 'todo1', idx: 1},
-    {id: 'gfaf', name: 'todo2', idx: 2},
-];
-
-export type CardType = {
-    id: string | number;
-    name: string;
-    order: number;
-    columnId: string
+type BoardProps = {
+    userId: string;
+    boardId: string;
+    board: BoardType;
+    columns: ColumnType[];
+    cards: Card[];
 }
 
-const defaultCards: CardType[] = [
-    {id: "fdafd", name: "task 1", order:0, columnId: 'asdf'},
-    {id: "alksd", name: "task 2", order:1, columnId: 'fdas'},
-    {id: "cvagh", name: "task 3", order:2, columnId: 'gfaf'},
-    {id: "dacaz", name: "task 4", order:3, columnId: 'gfaf'},
-]
-
-export default function Board() {
-    const [cards, setCards] = useState(defaultCards);
-    const [columns, setColumns] = useState(defaultColumns);
+export default function Board({ userId, boardId, board, columns, cards } : BoardProps) {
+    const [boardColumns, setBoardColumns] = useState<ColumnType[]>(columns);
+    const [boardCards, setBoardCards] = useState<Card[]>(cards);
 
     return (
         <div className="flex gap-4">
-            {columns.map(column => (
-            <Column key={column.id} {...column} setCards={setCards} cards={cards.filter(card => card.columnId === column.id)}/>
+            {boardColumns.map((column) => (
+            <Column 
+                key={column.id}
+                userId={userId} 
+                boardId={boardId} 
+                column={column}
+                cards={boardCards.filter((card) => card.columnId === column.id)}
+                setCards={setBoardCards} // this allows each Column comp to update the parent state array
+            />
             ))}
-            <FormColumn/>
+
+            <FormColumn board={board} onColumnCreated={(newCol) => {
+                setBoardColumns([...boardColumns, newCol]);
+            }} />
         </div>
     );
 }

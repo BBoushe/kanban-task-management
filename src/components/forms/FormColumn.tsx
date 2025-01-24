@@ -1,11 +1,14 @@
 'use client';
 import { FormEvent } from "react";
+import { Board } from "@/app/actions/boardActions";
+import { createColumn, Column} from "@/app/actions/boardActions";
 
+ 
 // we explicitly mark a component to be a client component ('use client') as opposed to server component 
 // because we rely on browser(client) specific interactivity e.g. onSubmit.
 
 
-export default function FormColumn() {
+export default function FormColumn({ board, onColumnCreated }) {
 
     function handleNewColumn(event: FormEvent) {
         event.preventDefault();
