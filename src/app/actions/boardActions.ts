@@ -1,6 +1,8 @@
 import { db } from '@/app/utils/firebaseConfig';
 import Column from '@/components/Column';
-import { getDocs, addDoc, collection, serverTimestamp, doc, getDoc } from 'firebase/firestore';
+import { query, getDocs, updateDoc, addDoc, collection, serverTimestamp, doc, getDoc, Transaction, orderBy } from 'firebase/firestore';
+import { runTransaction } from 'firebase/firestore'; // this is just for testing the transaction function of firestore, and is not that important for this demo
+import { useAuth } from '../contexts/AuthContext';
 
 type CreateBoardResult = {
     id: string;
@@ -15,13 +17,15 @@ export type Board = {
     name: string;
     description: string;
     createdAt: any;
+    columnCount?: number;
     cards: Card[];
 }
 
 export type Column = {
     id: string;
     name: string;
-    order: number;
+    order?: number;
+    createdAt?: any;
   };
 
 export type Card = {
@@ -33,8 +37,12 @@ export type Card = {
     createdAt?: any;
 }
 
+type ColumnInput = Omit<Column, 'id' | 'createdAt'>;
+
 type CardInput = Omit<Card, 'id' | 'createdAt'>;
 // Omit means same as card but without second argument
+
+
 
 export async function createBoard(userId:string, name: string, description: string) : Promise<CreateBoardResult> {
     // reference of boards subcollection for userId, under users collection
@@ -46,7 +54,22 @@ export async function createBoard(userId:string, name: string, description: stri
             name,
             description,
             createdAt: serverTimestamp(), // creation timestamp 
+            columnCount: 0,
         });
+
+        const boardPath = `users/${userId}/boards/${docRef.id}`;
+        const columnsCollection = collection(db, `${boardPath}/columns`);
+        const cardsCollection = collection(db, `${boardPath}/cards`);
+
+        await Promise.all([
+            addDoc(columnsCollection, { placeholder: true }).catch((err) => {
+                console.error("Failed to create columns placeholder:", err);
+            }),
+            addDoc(cardsCollection, { placeholder: true }).catch((err) => {
+                console.error("Failed to create cards placeholder:", err);
+            }),
+        ]);
+
         console.log("Document written with ID: ", docRef.id);
 
         return { id: docRef.id }; // return new board ID
@@ -58,8 +81,35 @@ export async function createBoard(userId:string, name: string, description: stri
 }
 
 export async function createColumn(userId: string, boardId: string, columnName: string) : Promise<Column> {
-    // TO-DO complete function later
-    return { id: 'fdadfa', name: columnName, order: 1};
+    // fetch board first, then fetch 
+   const boardRef = doc(db, `users/${userId}/boards/${boardId}`);
+   const columnRef = collection(boardRef, 'columns');
+
+   return runTransaction(db, async (transaction) => {
+    const boardSnap = await transaction.get(boardRef);
+    if(!boardSnap.exists()) {
+        throw new Error("Board doesn't exist.");
+    }
+
+    const boardData = boardSnap.data() as Board;
+    const currentCount = boardData.columnCount ?? 0; // ?? if null turn 0, like in swift
+
+    // create a new reference of the column in firestore and  set its' data
+    const newColumnRef = doc(columnRef);
+    transaction.set(newColumnRef, {
+        name: columnName,
+        order: currentCount,
+        createdAt: serverTimestamp(),
+    });
+
+    transaction.update(boardRef, { columnCount: currentCount + 1});
+
+    return {
+        id: newColumnRef.id,
+        name: columnName,
+        order: currentCount,
+    };
+   });
 }
 
 export async function createCard(userId: string, boardId: string, cardData: CardInput) : Promise<Card> {
@@ -95,7 +145,7 @@ export async function fetchBoards(userId: string) : Promise<Board[]> {
 
 export async function getBoard(userId: string, boardId: string) : Promise<Board> {
     // document reference so we can fetch it below
-    const docRef = doc(db, `/users/${userId}/boards/${boardId}`);
+    const docRef = doc(db, `users/${userId}/boards/${boardId}`);
     const docSnap = await getDoc(docRef);
 
     if(!docSnap.exists()) {
@@ -109,25 +159,36 @@ export async function getBoard(userId: string, boardId: string) : Promise<Board>
 }
 
 export async function getColumns(userId: string, boardId: string) : Promise<Column[]> {
-    const columnsRef = collection(db, `users/${userId}/boards/${boardId}/columns}`);
-    const snapshot = await getDocs(columnsRef);
+    const columnsRef = collection(db, `users/${userId}/boards/${boardId}/columns`);
+    const columnsQuery = query(columnsRef, orderBy("order"));
+    const snapshot = await getDocs(columnsQuery);
 
-    const columns: Column[] = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...(doc.data() as Omit<Column, 'id'>),
-    }));
-
-    return columns;
+    return snapshot.docs
+        .filter((doc) => !doc.data().placeholder) // ensure we don't return placeholders
+        .map((doc) => ({
+            id: doc.id,
+            ...(doc.data() as Omit<Column, 'id'>),
+        }));
 }
+
+export async function updateColumn(
+    userId: string,
+    boardId: string,
+    columnId: string,
+    data: Partial<Column>
+  ) {
+    const ref = doc(db, `users/${userId}/boards/${boardId}/columns/${columnId}`);
+    await updateDoc(ref, data);
+  }
 
 export async function getCards(userId: string, boardId: string) : Promise<Card[]> {
     const cardsRef = collection(db,`users/${userId}/boards/${boardId}/cards`);
     const snapshot = await getDocs(cardsRef);
 
-    const cards: Card[] = snapshot.docs.map(doc => ({
+    return snapshot.docs
+        .filter((doc) => !doc.data().placeholder)    
+        .map(doc => ({
         id: doc.id,
         ...(doc.data() as Omit<Card, 'id'>),
     }));
-
-    return cards;
 }

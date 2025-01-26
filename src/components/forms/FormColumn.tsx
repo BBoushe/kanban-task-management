@@ -1,16 +1,21 @@
+// we explicitly mark a component to be a client component ('use client') as opposed to server component 
+// because we rely on browser(client) specific interactivity e.g. onSubmit.
 'use client';
+
 import { FormEvent } from "react";
 import { Board } from "@/app/actions/boardActions";
 import { createColumn, Column} from "@/app/actions/boardActions";
 
  
-// we explicitly mark a component to be a client component ('use client') as opposed to server component 
-// because we rely on browser(client) specific interactivity e.g. onSubmit.
+type FormColumnProps = {
+    userId: string;
+    board: Board;
+    onColumnCreated: (newColumn: Column) => void;
+}
 
 
-export default function FormColumn({ board, onColumnCreated }) {
-
-    function handleNewColumn(event: FormEvent) {
+export default function FormColumn({ userId, board, onColumnCreated } : FormColumnProps) {
+    async function handleNewColumn(event: FormEvent) {
         event.preventDefault();
 
         // Downcasting here since TypeScript treats event.target as EventTarget, so we're specifying it's type directly
@@ -19,8 +24,17 @@ export default function FormColumn({ board, onColumnCreated }) {
         // the EventTarget doesn't have querySelector on the prototype chain so regular JS would just go down the prototype chain until it finds it
         // but as we know this can cause runtime errors so TS says "nope can't do that until I know it's definetely there"
         // In short 'as' is used for downcasting or upcasting
-        const input = (event.target as HTMLFormElement).querySelector('input');
-        const columnName = input?.value;
+        const input = (event.target as HTMLFormElement).querySelector('input#columnName') as HTMLInputElement || null;
+        const columnName = input?.value.trim();
+
+        if(!columnName) return; // don't create a column if the name is blank upon click
+
+        const newColumnData = await createColumn(userId, board.id, columnName);
+        onColumnCreated(newColumnData);
+
+        if(input) {
+            input.value = "";
+        }
     }
 
     return (

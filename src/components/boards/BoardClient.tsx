@@ -10,6 +10,8 @@ import { getCards, Card } from '@/app/actions/boardActions';
 // Component imports
 import Loading from '@/components/Loading';
 import Board from '../Board';
+import FormColumn from '../forms/FormColumn';
+import { useAuth } from '@/app/contexts/AuthContext';
 
 type BoardClientProps = {
     userId: string,
@@ -23,13 +25,22 @@ export default function BoardClient({ userId, boardId } : BoardClientProps) {
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
 
+    const { user } = useAuth();
     useEffect(() => {
         async function fetchData() {
             setLoading(true);
+
+            if(!user) return; // make sure user is authenticated
+
             try {
-                const boardData = await getBoard(userId, boardId);
-                const columnData = await getColumns(userId, boardId);
-                const cardsData = await getCards(userId, boardId);
+              
+
+                const boardData = await getBoard(user?.uid, boardId);
+                console.log("Step 1 done.")
+                const columnData = await getColumns(user?.uid, boardId);
+                console.log("Step 2 done.");
+                const cardsData = await getCards(user?.uid, boardId);
+                console.log("Step 3 done.");
 
                 setBoard(boardData);
                 setColumns(columnData);
@@ -43,7 +54,7 @@ export default function BoardClient({ userId, boardId } : BoardClientProps) {
         }
 
         fetchData();
-    }, [userId, boardId]);
+    }, [user, boardId]);
 
     if(loading) return <Loading/>;
     if(error) return <p>{error}</p>;
@@ -60,16 +71,29 @@ export default function BoardClient({ userId, boardId } : BoardClientProps) {
         {new Date(board.createdAt.seconds * 1000).toLocaleDateString()}
       </p>
 
-      <section className="mt-8">
-        <Board
-          board={board} 
-          userId={userId}
-          boardId={boardId}
-          columns={columns}
-          cards={cards} 
-        />
+      <section>
+        {columns.length === 0 ? (
+          <div>
+            <p>This board has no columns. Create one to get started:</p>
+            <FormColumn
+              userId={userId}
+              board={board}
+              onColumnCreated={(newColumn : Column) => {
+                setColumns([...columns, newColumn]);
+              }}
+            />
+          </div>
+        ) : (
+          <Board
+            board={board}
+            userId={userId}
+            boardId={boardId}
+            columns={columns}
+            cards={cards}
+          />
+        )}
       </section>
-    </div>
+      </div>
     );
 
 }

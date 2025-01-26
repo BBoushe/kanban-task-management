@@ -1,5 +1,6 @@
 app/home/page.tsx:
-"'use client';
+<Start of file>
+'use client';
 
 import ProtectedRoute from "@/components/ProtectedRoute"
 import Link from "next/link";
@@ -39,11 +40,13 @@ export default function HomePage() {
         </div>
         </ProtectedRoute>
     );
-}"
+}
+<End of file>
 
 
 app/contexts/AuthContext.tsx:
-"'use client';
+<Start of file>
+'use client';
 import { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { auth } from '@/app/utils/firebaseConfig';
@@ -95,21 +98,12 @@ export function useAuth() {
         throw new Error("[DEV Message]: useAuth must be used within an AuthProvider");
     }
     return context;
-}"
-
-app/board/page.tsx:
-"import Board from "@/components/Board";
-import ProtectedRoute from "@/components/ProtectedRoute";
-// if this has problems surround board with ProtectedRoute
-
-export default function LoginPage() {
-    return (
-       <Board/>
-    );
-}"
+}
+<End of file>
 
 app/utils/validationSchema.ts:
-"import * as yup from "yup";
+<Start of file>
+import * as yup from "yup";
 
 export const registrationSchema = yup.object().shape({
   email: yup
@@ -131,18 +125,27 @@ export const registrationSchema = yup.object().shape({
       .string()
       .min(6, "Username must be at least 6 characters")
       .required("Username is required"),
-});"
+});
+<End of file>
 
 app/utils/firebaseConfig.ts:
-"// Import the functions you need from the SDKs you need
+<Start of file>
+// Import the functions you need from the SDKs you need
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { getFirestore } from "firebase/firestore";
 
 // Your web app's Firebase configuration
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+// all kept in .env
 const firebaseConfig = {
-  omitted for obvious reasons from this chat, but are present in my actual project
+  apiKey: process.env.NEXT_PUBLIC_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_APP_ID,
+  measurementId: process.env.NEXT_PUBLIC_MEASUREMENT_ID,
 };
 
 // Initialize Firebase
@@ -151,17 +154,21 @@ const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
 const db = getFirestore(app);
 
-export { auth, googleProvider, db };"
+export { auth, googleProvider, db };
+<End of file>
 
 app/register/page.tsx:
-"import Register from '@/components/authentication/Register';
+<Start of file>
+import Register from '@/components/authentication/Register';
 
 export default function RegisterPage() {
     return <Register/>;
-}"
+}
+<End of file>
 
 app/create-board/page.tsx:
-"'use client';
+<Start of file>
+'use client';
 
 
 import { useAuth } from "../contexts/AuthContext";
@@ -200,10 +207,12 @@ export default function () {
             </form>
         </div>
     );
-}"
+}
+<End of file>
 
 app/layout.tsx:
-"import "./globals.css";
+<Start of file>
+import "./globals.css";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AuthProvider} from '@/app/contexts/AuthContext';
@@ -241,10 +250,12 @@ export default function RootLayout({
       </body>
     </html>
   );
-}"
+}
+<End of file>
 
 app/users/[userId]/boards/[boardId]/page.tsx:
-"// this is an optional page and this means that we can change the layout of board specific pages
+<Start of file>
+// this is an optional page and this means that we can change the layout of board specific pages
 // I'm not going to implement this right now because I don't think this is the main purpose of the project
 // The use case here can be that while in "work mode" we might use a different layout than the main pages i.e. when we're inside a
 // board we might like to put the header somewhere differently, we might want to add additioanl sections than the ones in the app etc.
@@ -253,6 +264,7 @@ app/users/[userId]/boards/[boardId]/page.tsx:
 // IMPORTANT: the dynamic routting has to be set up exactly like the collection in firebase
 import React from 'react';
 import BoardClient from '@/components/boards/BoardClient';
+import ProtectedRoute from '@/components/ProtectedRoute';
 
 type BoardPageProps = {
     params: Promise<{
@@ -262,28 +274,63 @@ type BoardPageProps = {
 };
 
 export default async function BoardPage({ params }: BoardPageProps) {
-    const { userId, boardId } = React.use(params);
-    console.log("Dynamic route params:", { userId, boardId });
+    const {userId, boardId} = await params; // params are asynchronious in nextjs 15
     
     return (
-        <BoardClient userId={userId} boardId={boardId}/>
+        <ProtectedRoute>
+            <BoardClient userId={userId} boardId={boardId}/>
+        </ProtectedRoute>
     )
-}"
+}
+<End of file>
 
 app/actions/boardActions.ts:
-"import { db } from '@/app/utils/firebaseConfig';
-import { getDocs, addDoc, collection, serverTimestamp, doc, getDoc } from 'firebase/firestore';
+<Start of file>
+import { db } from '@/app/utils/firebaseConfig';
+import Column from '@/components/Column';
+import { getDocs, updateDoc, addDoc, collection, serverTimestamp, doc, getDoc, Transaction, orderBy } from 'firebase/firestore';
+import { runTransaction } from 'firebase/firestore'; // this is just for testing the transaction function of firestore, and is not that important for this demo
+import { useAuth } from '../contexts/AuthContext';
 
 type CreateBoardResult = {
     id: string;
 };
+
+type CreateCardResult = {
+    id: string;
+}
 
 export type Board = {
     id: string;
     name: string;
     description: string;
     createdAt: any;
+    columnCount?: number;
+    cards: Card[];
 }
+
+export type Column = {
+    id: string;
+    name: string;
+    order?: number;
+    createdAt?: any;
+  };
+
+export type Card = {
+    id: string;
+    title: string;
+    description?: string;
+    columnId?: string;
+    order: number;
+    createdAt?: any;
+}
+
+type ColumnInput = Omit<Column, 'id' | 'createdAt'>;
+
+type CardInput = Omit<Card, 'id' | 'createdAt'>;
+// Omit means same as card but without second argument
+
+
 
 export async function createBoard(userId:string, name: string, description: string) : Promise<CreateBoardResult> {
     // reference of boards subcollection for userId, under users collection
@@ -295,15 +342,82 @@ export async function createBoard(userId:string, name: string, description: stri
             name,
             description,
             createdAt: serverTimestamp(), // creation timestamp 
+            columnCount: 0,
         });
+
+        const boardPath = `users/${userId}/boards/${docRef.id}`;
+        const columnsCollection = collection(db, `${boardPath}/columns`);
+        const cardsCollection = collection(db, `${boardPath}/cards`);
+
+        await Promise.all([
+            addDoc(columnsCollection, { placeholder: true }).catch((err) => {
+                console.error("Failed to create columns placeholder:", err);
+            }),
+            addDoc(cardsCollection, { placeholder: true }).catch((err) => {
+                console.error("Failed to create cards placeholder:", err);
+            }),
+        ]);
+
         console.log("Document written with ID: ", docRef.id);
 
         return { id: docRef.id }; // return new board ID
-      } catch (e) {
-        console.error("Error adding document: ", e);
-        throw new Error("Failed to create board. Please try again later.")
+      } catch (err) {
+        console.error("Error adding document: ", err);
+        throw new Error("Failed to create board. Please try again later.");
       }
 
+}
+
+export async function createColumn(userId: string, boardId: string, columnName: string) : Promise<Column> {
+    // fetch board first, then fetch 
+   const boardRef = doc(db, `users/${userId}/boards/${boardId}`);
+   const columnRef = collection(boardRef, 'columns');
+
+   return runTransaction(db, async (transaction) => {
+    const boardSnap = await transaction.get(boardRef);
+    if(!boardSnap.exists()) {
+        throw new Error("Board doesn't exist.");
+    }
+
+    const boardData = boardSnap.data() as Board;
+    const currentCount = boardData.columnCount ?? 0; // ?? if null turn 0, like in swift
+
+    // create a new reference of the column in firestore and  set its' data
+    const newColumnRef = doc(columnRef);
+    transaction.set(newColumnRef, {
+        name: columnName,
+        order: currentCount,
+        createdAt: serverTimestamp(),
+    });
+
+    transaction.update(boardRef, { columnCount: currentCount + 1});
+
+    return {
+        id: newColumnRef.id,
+        name: columnName,
+        order: currentCount,
+    };
+   });
+}
+
+export async function createCard(userId: string, boardId: string, cardData: CardInput) : Promise<Card> {
+    const cardsCollection = collection(db, `users/${userId}/boards/${boardId}/cards`);
+
+    try {
+        const docRef = await addDoc(cardsCollection, {
+            ...cardData,
+            createdAt: serverTimestamp(),
+        });
+        console.log("Card created with ID: ", docRef.id);
+
+        return { 
+            id: docRef.id,
+            ...cardData 
+        };
+    } catch (err) {
+        console.error("Error adding card: ", err);
+        throw new Error("Failed to create card. Please try again later.");
+    }
 }
 
 export async function fetchBoards(userId: string) : Promise<Board[]> {
@@ -317,44 +431,84 @@ export async function fetchBoards(userId: string) : Promise<Board[]> {
     })) as Board[];
 }
 
-// export async function getBoard(userId: string, boardId: string) : Promise<Board> {
-//     // document reference so we can fetch it below
-//     const docRef = doc(db, `/users/${userId}/boards/${boardId}`);
-//     const docSnap = await getDoc(docRef);
-
-//     if(!docSnap.exists()) {
-//         throw new Error("No such board found.");
-//     }
-
-//     return {
-//         id: boardId,
-//         ...(docSnap.data() as Omit<Board, 'id'>), // ensure it matches the Board type with Omit
-//     }
-// }
-
-export async function getBoard(userId: string, boardId: string): Promise<Board> {
-    const docRef = doc(db, `/users/${userId}/boards/${boardId}`); // Correct Firestore path
-    console.log("Fetching document from Firestore path:", docRef.path);
-
+export async function getBoard(userId: string, boardId: string) : Promise<Board> {
+    // document reference so we can fetch it below
+    const docRef = doc(db, `users/${userId}/boards/${boardId}`);
     const docSnap = await getDoc(docRef);
 
-    if (!docSnap.exists()) {
-        console.error(`No document found at path: ${docRef.path}`);
+    if(!docSnap.exists()) {
         throw new Error("No such board found.");
     }
 
     return {
         id: boardId,
-        ...(docSnap.data() as Omit<Board, 'id'>), // Spread the data and ensure it matches the Board type
-    };
-}"
+        ...(docSnap.data() as Omit<Board, 'id'>), // ensure it matches the Board type with Omit
+    }
+}
+
+export async function getColumns(userId: string, boardId: string) : Promise<Column[]> {
+    const columnsRef = collection(db, `users/${userId}/boards/${boardId}/columns`);
+    const snapshot = await getDocs(columnsRef);
+
+    return snapshot.docs
+        .filter((doc) => !doc.data().placeholder) // ensure we don't return placeholders
+        .map((doc) => ({
+            id: doc.id,
+            ...(doc.data() as Omit<Column, 'id'>),
+        }));
+}
+
+export async function updateColumn(
+    userId: string,
+    boardId: string,
+    columnId: string,
+    data: Partial<Column>
+  ) {
+    const ref = doc(db, `users/${userId}/boards/${boardId}/columns/${columnId}`);
+    await updateDoc(ref, data);
+  }
+
+export async function getCards(userId: string, boardId: string) : Promise<Card[]> {
+    const cardsRef = collection(db,`users/${userId}/boards/${boardId}/cards`);
+    const snapshot = await getDocs(cardsRef);
+
+    return snapshot.docs
+        .filter((doc) => !doc.data().placeholder)    
+        .map(doc => ({
+        id: doc.id,
+        ...(doc.data() as Omit<Card, 'id'>),
+    }));
+}
+<End of file>
+
+app/actions/cardActions.ts:
+<Start of file>
+import { db } from "../utils/firebaseConfig";
+import { doc, updateDoc } from 'firebase/firestore';
+
+type UpdateCardData = {
+    columnId?: string;
+    order?: number;
+    title?: string;
+    description?: string;
+}
+
+export async function updateCard(userId: string, boardId: string, cardId: string, data:UpdateCardData) {
+    const cardDocRef = doc(db, `users/${userId}/boards/${boardId}/cards/${cardId}`);
+    await updateDoc(cardDocRef, data);
+}
+<End of file>
 
 app/page.tsx:
-"'use client';
+<Start of file>
+'use client';
+
 import LandingPage from "@/components/views/LandingPage";
+import Loading from "@/components/Loading";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useAuth } from '@/app/contexts/AuthContext';
+
 
 
 export default function Home() {
@@ -363,17 +517,19 @@ export default function Home() {
 
   useEffect(() => {
     if(!loading && user) {
-      router.push('/board');
+      router.push('/home');
     }
   }, [user,loading, router]);
 
-  if(loading) return <p>Loading...</p>
+  if(loading) return <Loading/>;
 
   return <LandingPage/>;
-}"
+}
+<End of file>
 
 app/globals.css:
-"@tailwind base;
+<Start of file>
+@tailwind base;
 @tailwind components;
 @tailwind utilities;
 
@@ -416,27 +572,39 @@ body {
 .btn-google {
   @apply flex items-center justify-center space-x-2 rounded px-4 py-2;
   @apply bg-red-500 text-white hover:bg-red-600;
-}"
+}
+<End of file>
 
 app/login/page.tsx:
-"import Login from '@/components/Login';
+<Start of file>
+import Login from '@/components/Login';
 
 export default function LoginPage() {
     return <Login/>;
-}"
+}
+<End of file>
 
 
 components/forms/FormColumn.tsx:
-"'use client';
-import { FormEvent } from "react";
-
+<Start of file>
 // we explicitly mark a component to be a client component ('use client') as opposed to server component 
 // because we rely on browser(client) specific interactivity e.g. onSubmit.
+'use client';
+
+import { FormEvent } from "react";
+import { Board } from "@/app/actions/boardActions";
+import { createColumn, Column} from "@/app/actions/boardActions";
+
+ 
+type FormColumnProps = {
+    userId: string;
+    board: Board;
+    onColumnCreated: (newColumn: Column) => void;
+}
 
 
-export default function FormColumn() {
-
-    function handleNewColumn(event: FormEvent) {
+export default function FormColumn({ userId, board, onColumnCreated } : FormColumnProps) {
+    async function handleNewColumn(event: FormEvent) {
         event.preventDefault();
 
         // Downcasting here since TypeScript treats event.target as EventTarget, so we're specifying it's type directly
@@ -445,8 +613,17 @@ export default function FormColumn() {
         // the EventTarget doesn't have querySelector on the prototype chain so regular JS would just go down the prototype chain until it finds it
         // but as we know this can cause runtime errors so TS says "nope can't do that until I know it's definetely there"
         // In short 'as' is used for downcasting or upcasting
-        const input = (event.target as HTMLFormElement).querySelector('input');
-        const columnName = input?.value;
+        const input = (event.target as HTMLFormElement).querySelector('input#columnName') as HTMLInputElement || null;
+        const columnName = input?.value.trim();
+
+        if(!columnName) return; // don't create a column if the name is blank upon click
+
+        const newColumnData = await createColumn(userId, board.id, columnName);
+        onColumnCreated(newColumnData);
+
+        if(input) {
+            input.value = "";
+        }
     }
 
     return (
@@ -461,10 +638,12 @@ export default function FormColumn() {
             </div>
         </form>  
     );
-}"
+}
+<End of file>
 
 components/ProtectedRoute.tsx:
-"'use client';
+<Start of file>
+'use client';
 import { useAuth } from '@/app/contexts/AuthContext';
 import { useRouter } from "next/navigation";
 import { useEffect } from 'react';
@@ -482,10 +661,12 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
     if (loading || !user) return <p>Loading...</p>;
 
     return <>{children}</>;
-}"
+}
+<End of file>
 
 components/Login.tsx:
-"'use client';
+<Start of file>
+'use client';
 import { useState } from 'react';
 import { useAuth } from '@/app/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
@@ -558,57 +739,80 @@ export default function Login() {
             <GoogleLoginButton>Login with Google</GoogleLoginButton>
       </div>
     );
-}"
+}
+<End of file>
 
 components/Board.tsx:
-"'use client';
+<Start of file>
+'use client';
+import { ReactSortable } from 'react-sortablejs';
 import Column from './Column';
 import FormColumn from "./forms/FormColumn";
+import { Board as BoardType, Card, Column as ColumnType } from '@/app/actions/boardActions';
 import { useState } from 'react';
+import { updateColumn } from '@/app/actions/boardActions';
 
-const defaultColumns: {id:string, name:string, idx:number}[] = [
-    {id: 'asdf', name: 'todo', idx: 0},
-    {id: 'fdas', name: 'todo1', idx: 1},
-    {id: 'gfaf', name: 'todo2', idx: 2},
-];
-
-export type CardType = {
-    id: string | number;
-    name: string;
-    order: number;
-    columnId: string
+type BoardProps = {
+    userId: string;
+    boardId: string;
+    board: BoardType;
+    columns: ColumnType[];
+    cards: Card[];
 }
 
-const defaultCards: CardType[] = [
-    {id: "fdafd", name: "task 1", order:0, columnId: 'asdf'},
-    {id: "alksd", name: "task 2", order:1, columnId: 'fdas'},
-    {id: "cvagh", name: "task 3", order:2, columnId: 'gfaf'},
-    {id: "dacaz", name: "task 4", order:3, columnId: 'gfaf'},
-]
-
-export default function Board() {
-    const [cards, setCards] = useState(defaultCards);
-    const [columns, setColumns] = useState(defaultColumns);
+export default function Board({ userId, boardId, board, columns, cards } : BoardProps) {
+    const [boardColumns, setBoardColumns] = useState<ColumnType[]>(columns);
+    const [boardCards, setBoardCards] = useState<Card[]>(cards);
 
     return (
         <div className="flex gap-4">
-            {columns.map(column => (
-            <Column key={column.id} {...column} setCards={setCards} cards={cards.filter(card => card.columnId === column.id)}/>
-            ))}
-            <FormColumn/>
+            <ReactSortable
+            list={columns}
+            setList={(sorted) => {
+                setBoardColumns(sorted);
+
+                sorted.forEach((col, index) => {
+                    updateColumn(userId, boardId, col.id, {order: index});
+                })
+            }}
+            group="columns"
+            className='flex gap-4'>
+                {boardColumns.map((column) => (
+                <Column 
+                    key={column.id}
+                    userId={userId} 
+                    boardId={boardId} 
+                    column={column}
+                    cards={boardCards.filter((card) => card.columnId === column.id)}
+                    setCards={setBoardCards} // this allows each Column comp to update the parent state array
+                />
+                ))}
+            </ReactSortable>
+
+            <FormColumn userId={userId} board={board} onColumnCreated={(newCol) => {
+                setBoardColumns([...boardColumns, newCol]);
+            }} />
         </div>
     );
-}"
+}
+<End of file>
 
 components/boards/BoardClient.tsx:
-"// this is the client part of the dynamic boardId page which is supposed to render on client
+<Start of file>
+// this is the client part of the dynamic boardId page which is supposed to render on client
 'use client';
 
+// Object imports
 import { useEffect, useState } from 'react';
-import { getAuth } from 'firebase/auth';
-import { getBoard } from '@/app/actions/boardActions';
-import { Board as BoardType } from '@/app/actions/boardActions';
+import { getBoard, Board as BoardType} from '@/app/actions/boardActions';
+import { getColumns, Column } from '@/app/actions/boardActions';
+import { getCards, Card } from '@/app/actions/boardActions';
+
+// Component imports
 import Loading from '@/components/Loading';
+import Board from '../Board';
+import FormColumn from '../forms/FormColumn';
+import { useAuth } from '@/app/contexts/AuthContext';
 
 type BoardClientProps = {
     userId: string,
@@ -617,55 +821,88 @@ type BoardClientProps = {
 
 export default function BoardClient({ userId, boardId } : BoardClientProps) {
     const [board, setBoard] = useState<BoardType | null>(null);
+    const [columns, setColumns] = useState<Column[]>([]);
+    const [cards, setCards] = useState<Card[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
 
+    const { user } = useAuth();
     useEffect(() => {
-        const auth = getAuth();
-        const user = auth.currentUser || '';
+        async function fetchData() {
+            setLoading(true);
 
-        if (!user || typeof user === "string") {
-            setError('User not authenticated. Please log in.');
-            setLoading(false);
-            return;
-        }
+            if(!user) return; // make sure user is authenticated
 
-        async function fetchBoard() {
             try {
-                const boardData = await getBoard(userId, boardId);
+              
+
+                const boardData = await getBoard(user?.uid, boardId);
+                console.log("Step 1 done.")
+                const columnData = await getColumns(user?.uid, boardId);
+                console.log("Step 2 done.");
+                const cardsData = await getCards(user?.uid, boardId);
+                console.log("Step 3 done.");
+
                 setBoard(boardData);
+                setColumns(columnData);
+                setCards(cardsData);
             } catch (err) {
-                console.error("Failed to fetch board: ", err);
-                setError("Board not found, or failed to fetch");
+                console.error("Failed to fetch data for board: ", err);
+                setError("Failed to fetch data for board in BoardClient.");
             } finally {
                 setLoading(false);
             }
         }
 
-        fetchBoard();
-    }, [userId, boardId]);
+        fetchData();
+    }, [user, boardId]);
 
     if(loading) return <Loading/>;
-
     if(error) return <p>{error}</p>;
-
     if(!board) return <p>Board not found</p>;
 
     return (
         <div>
-            <h1 className="text-4xl mb-4">{board.name}</h1>
-            <p className="text-gray-600">{board.description}</p>
-            <hr />
-            <p className="text-sm text-gray-500">
-                Created on: {new Date(board.createdAt.seconds * 1000).toLocaleDateString()}
-            </p>
-        </div>
+      {/* The board info at the top */}
+      <h1 className="text-4xl mb-4">{board.name}</h1>
+      <p className="text-gray-600">{board.description}</p>
+      <hr />
+      <p className="text-sm text-gray-500">
+        Created on:{" "}
+        {new Date(board.createdAt.seconds * 1000).toLocaleDateString()}
+      </p>
+
+      <section>
+        {columns.length === 0 ? (
+          <div>
+            <p>This board has no columns. Create one to get started:</p>
+            <FormColumn
+              userId={userId}
+              board={board}
+              onColumnCreated={(newColumn : Column) => {
+                setColumns([...columns, newColumn]);
+              }}
+            />
+          </div>
+        ) : (
+          <Board
+            board={board}
+            userId={userId}
+            boardId={boardId}
+            columns={columns}
+            cards={cards}
+          />
+        )}
+      </section>
+      </div>
     );
 
-}"
+}
+<End of file>
 
 components/Header.tsx:
-"'use client';
+<Start of file>
+'use client';
 import Link from 'next/link';
 import LogoutButton from './authentication/LogoutButton';
 import { getAuth } from 'firebase/auth';
@@ -694,17 +931,21 @@ export default function Header() {
             </header>)}
             </>
         );
-}"
+}
+<End of file>
 
 components/Loading.tsx:
-"export default function Loading() {
+<Start of file>
+export default function Loading() {
     return (
         <p>Loading...</p>
     );
-}"
+}
+<End of file>
 
 components/views/LandingPage.tsx:
-"'use client'
+<Start of file>
+'use client'
 import Link from 'next/link';
 
 export default function LandingPage() {
@@ -732,10 +973,12 @@ export default function LandingPage() {
             </div>
         </div>
     );
-}"
+}
+<End of file>
 
 components/authentication/LogoutButton.tsx:
-"import { useAuth } from '@/app/contexts/AuthContext';
+<Start of file>
+import { useAuth } from '@/app/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 
 export default function LogoutButton() {
@@ -758,10 +1001,12 @@ export default function LogoutButton() {
         //     Logout
         // </Link>
     );
-}"
+}
+<End of file>
 
 components/authentication/Register.tsx:
-"'use client';
+<Start of file>
+'use client';
 import { useState } from 'react';
 import { createUserWithEmailAndPassword, updateProfile, getAuth } from 'firebase/auth';
 import { auth } from '@/app/utils/firebaseConfig';
@@ -875,10 +1120,12 @@ export default function Register() {
             <GoogleLoginButton>Register with Google</GoogleLoginButton>
       </div>
     );
-}"
+}
+<End of file>
 
 components/authentication/GoogleLoginButton.tsx:
-"'use client'
+<Start of file>
+'use client'
 import { signInWithPopup, updateProfile } from 'firebase/auth';
 import { auth, googleProvider } from '@/app/utils/firebaseConfig';
 import { useRouter } from 'next/navigation';
@@ -908,39 +1155,78 @@ export default function GoogleLoginButton({ children }:any){
             {children}
         </button>
     );
-}"
+}
+<End of file>
 
 components/Column.tsx:
-"import { ReactSortable } from "react-sortablejs";
-import { CardType } from "./Board";
-import { SetStateAction } from "react";
+<Start of file>
+'use client';
+
+import { ReactSortable } from "react-sortablejs";
+import { Dispatch, SetStateAction } from "react";
+import { useState } from 'react';
+import { Card } from "@/app/actions/boardActions";
+import { createCard } from "@/app/actions/boardActions";
+import { Column as ColumnType } from "@/app/actions/boardActions";
+import { updateCard } from "@/app/actions/cardActions";
 
 // this is called type alias and is used to define the shape or the data types of the props in the component
 // you can use an interface here as well, but using type alias is not only common practice but also offers more flexibility because of
 // the ability to define complex types like union or intersection and also serve a specific puspose
 // interfaces can be inherited while types cannot 
 type ColumnProps = {
-    id: string;
-    name: string;
-    idx: number;
-    cards: CardType[];
-    setCards: SetStateAction<any>;
+    userId: string;
+    boardId: string;
+    column: ColumnType;
+    cards: Card[];
+    setCards: Dispatch<SetStateAction<Card[]>>;
 }
 
-export default function Column({ id, name, cards, setCards }: ColumnProps) {
-    function setCardsForColumn(sortedCards: CardType[], newColumnId: string) {
-        setCards((prevCards: CardType[]) => {
-            const unsortedCards = [...prevCards]; // destruct with spread and give us the prev state
+export default function Column({ userId, boardId, column, cards, setCards }: ColumnProps) {
+    const [isAddingCard, setIsAddingCard] = useState<boolean>(false);
+    const [newCardTitle, setNewCardTitle] = useState<string>('');
+
+    function handleAddCard() {
+        setIsAddingCard(true);
+    }
+
+    async function handleCreateCard() {
+        if(!newCardTitle.trim()) {
+            setIsAddingCard(false);
+            return; // ignore empty cards
+        }
+
+        const newCardData = await createCard(userId, boardId, {
+            title: newCardTitle,
+            columnId: column.id,
+            order: cards.length,
+        });
+
+        setCards((prevState) => [...prevState, newCardData]);
+
+        // cleanup
+        setNewCardTitle("");
+        setIsAddingCard(false);
+    }
+
+    /**
+   * Called whenever ReactSortable re-sorts or moves cards into this column.
+   * @param sortedCards - The new array of cards in this column after sorting
+   * @param newColumnId - The ID of the column that owns these cards
+   */
+    function setCardsForColumn(sortedCards: Card[], newColumnId: string) {
+        setCards((prevCards: Card[]) => {
+            const updated = [...prevCards]; // destruct with spread and give us the prev state
             
-            sortedCards.forEach((sortedCard: CardType, newOrder: number) => {
-                const foundCard = unsortedCards.find((card) => card.id === sortedCard.id)
+            sortedCards.forEach((sortedCard: Card, newOrder: number) => {
+                const foundCard = updated.find((card) => card.id === sortedCard.id)
                 if(foundCard) {
                     foundCard.columnId = newColumnId;
                     foundCard.order = newOrder; // update the new position
                 }
             });
             
-            return unsortedCards.sort((a,b) => {
+            updated.sort((a,b) => {
                 if(a.columnId === b.columnId) {
                     return a.order - b.order;
                 }
@@ -948,32 +1234,69 @@ export default function Column({ id, name, cards, setCards }: ColumnProps) {
             });
             // return the new processed cards, sorted by order so the reordering works, as the new state of the cards
             // which is being called when anythin in the ReactSortable changes, specifically on the list of cards 
+
+            return updated;
+        });
+
+        sortedCards.forEach(async (sortedCard, newOrder) => {
+            await updateCard(userId, boardId, sortedCard.id, {
+              columnId: newColumnId,
+              order: newOrder,
+            });
         });
     }
 
-    return (
-        <div className="w-48 shadow-md bg-white rounded-md p-4">
-            <h3>{name}</h3>
-            <ReactSortable 
-                list={cards} 
-                setList={(updatedCards) => setCardsForColumn(updatedCards, id)} 
-                group="cards"
+
+        return (
+            <div className="w-60 shadow-md bg-white rounded-md p-4">
+                <h3 className="font-semibold">{column.name}</h3>
+
+                {/* Sortable area for existing cards */}
+                <ReactSortable
+                list={cards}
+                setList={(updated) => setCardsForColumn(updated, column.id)}
+                group="cards" // ensures cross-column drag is allowed
                 className="min-h-32 p-1 flex flex-col space-y-1"
                 ghostClass="opacity-30"
-            >
-                {cards.map(card => (
+                >
+                    {cards.map((card) => (
                     <div key={card.id} className="border bg-white my-2 p-4 rounded-md">
-                        <span>{card.name}</span>
+                    <span>{card.title}</span>
                     </div>
-                ))}
-            </ReactSortable>
-        </div>
-    );
-}"
+                    ))}
+                </ReactSortable>
+
+                {/* Add Card Button / Input */}
+                {isAddingCard ? (
+                <div className="mt-2">
+                <input
+                className="border p-1 w-full rounded"
+                autoFocus
+                value={newCardTitle}
+                onChange={(e) => setNewCardTitle(e.target.value)}
+                onBlur={handleCreateCard}
+                onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                handleCreateCard();
+                }
+                }}
+                />
+                </div>
+                ) : (
+                <button className="btn-secondary mt-2" onClick={handleAddCard}>
+                + Add Card
+                </button>
+                )}
+            </div>
+     );
+}
+<End of file>
 
 output.txt:
-"app/home/page.tsx:
-"'use client';
+<Start of file>
+app/home/page.tsx:
+<Start of file>
+'use client';
 
 import ProtectedRoute from "@/components/ProtectedRoute"
 import Link from "next/link";
@@ -1013,11 +1336,13 @@ export default function HomePage() {
         </div>
         </ProtectedRoute>
     );
-}"
+}
+<End of file>
 
 
 app/contexts/AuthContext.tsx:
-"'use client';
+<Start of file>
+'use client';
 import { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { auth } from '@/app/utils/firebaseConfig';
@@ -1069,21 +1394,12 @@ export function useAuth() {
         throw new Error("[DEV Message]: useAuth must be used within an AuthProvider");
     }
     return context;
-}"
-
-app/board/page.tsx:
-"import Board from "@/components/Board";
-import ProtectedRoute from "@/components/ProtectedRoute";
-// if this has problems surround board with ProtectedRoute
-
-export default function LoginPage() {
-    return (
-       <Board/>
-    );
-}"
+}
+<End of file>
 
 app/utils/validationSchema.ts:
-"import * as yup from "yup";
+<Start of file>
+import * as yup from "yup";
 
 export const registrationSchema = yup.object().shape({
   email: yup
@@ -1105,24 +1421,27 @@ export const registrationSchema = yup.object().shape({
       .string()
       .min(6, "Username must be at least 6 characters")
       .required("Username is required"),
-});"
+});
+<End of file>
 
 app/utils/firebaseConfig.ts:
-"// Import the functions you need from the SDKs you need
+<Start of file>
+// Import the functions you need from the SDKs you need
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { getFirestore } from "firebase/firestore";
 
 // Your web app's Firebase configuration
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+// all kept in .env
 const firebaseConfig = {
-  apiKey: "AIzaSyBvYAR62pOtrTfs9IRXTAMlwhixzlxfJZo",
-  authDomain: "trello-clone-mvp.firebaseapp.com",
-  projectId: "trello-clone-mvp",
-  storageBucket: "trello-clone-mvp.firebasestorage.app",
-  messagingSenderId: "737415636352",
-  appId: "1:737415636352:web:0080c66a40b7c568524d65",
-  measurementId: "G-V18JNBNJ94"
+  apiKey: process.env.NEXT_PUBLIC_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_APP_ID,
+  measurementId: process.env.NEXT_PUBLIC_MEASUREMENT_ID,
 };
 
 // Initialize Firebase
@@ -1131,17 +1450,21 @@ const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
 const db = getFirestore(app);
 
-export { auth, googleProvider, db };"
+export { auth, googleProvider, db };
+<End of file>
 
 app/register/page.tsx:
-"import Register from '@/components/authentication/Register';
+<Start of file>
+import Register from '@/components/authentication/Register';
 
 export default function RegisterPage() {
     return <Register/>;
-}"
+}
+<End of file>
 
 app/create-board/page.tsx:
-"'use client';
+<Start of file>
+'use client';
 
 
 import { useAuth } from "../contexts/AuthContext";
@@ -1180,10 +1503,12 @@ export default function () {
             </form>
         </div>
     );
-}"
+}
+<End of file>
 
 app/layout.tsx:
-"import "./globals.css";
+<Start of file>
+import "./globals.css";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AuthProvider} from '@/app/contexts/AuthContext';
@@ -1221,10 +1546,12 @@ export default function RootLayout({
       </body>
     </html>
   );
-}"
+}
+<End of file>
 
 app/users/[userId]/boards/[boardId]/page.tsx:
-"// this is an optional page and this means that we can change the layout of board specific pages
+<Start of file>
+// this is an optional page and this means that we can change the layout of board specific pages
 // I'm not going to implement this right now because I don't think this is the main purpose of the project
 // The use case here can be that while in "work mode" we might use a different layout than the main pages i.e. when we're inside a
 // board we might like to put the header somewhere differently, we might want to add additioanl sections than the ones in the app etc.
@@ -1233,6 +1560,7 @@ app/users/[userId]/boards/[boardId]/page.tsx:
 // IMPORTANT: the dynamic routting has to be set up exactly like the collection in firebase
 import React from 'react';
 import BoardClient from '@/components/boards/BoardClient';
+import ProtectedRoute from '@/components/ProtectedRoute';
 
 type BoardPageProps = {
     params: Promise<{
@@ -1242,28 +1570,63 @@ type BoardPageProps = {
 };
 
 export default async function BoardPage({ params }: BoardPageProps) {
-    const { userId, boardId } = React.use(params);
-    console.log("Dynamic route params:", { userId, boardId });
+    const {userId, boardId} = await params; // params are asynchronious in nextjs 15
     
     return (
-        <BoardClient userId={userId} boardId={boardId}/>
+        <ProtectedRoute>
+            <BoardClient userId={userId} boardId={boardId}/>
+        </ProtectedRoute>
     )
-}"
+}
+<End of file>
 
 app/actions/boardActions.ts:
-"import { db } from '@/app/utils/firebaseConfig';
-import { getDocs, addDoc, collection, serverTimestamp, doc, getDoc } from 'firebase/firestore';
+<Start of file>
+import { db } from '@/app/utils/firebaseConfig';
+import Column from '@/components/Column';
+import { getDocs, updateDoc, addDoc, collection, serverTimestamp, doc, getDoc, Transaction, orderBy } from 'firebase/firestore';
+import { runTransaction } from 'firebase/firestore'; // this is just for testing the transaction function of firestore, and is not that important for this demo
+import { useAuth } from '../contexts/AuthContext';
 
 type CreateBoardResult = {
     id: string;
 };
+
+type CreateCardResult = {
+    id: string;
+}
 
 export type Board = {
     id: string;
     name: string;
     description: string;
     createdAt: any;
+    columnCount?: number;
+    cards: Card[];
 }
+
+export type Column = {
+    id: string;
+    name: string;
+    order?: number;
+    createdAt?: any;
+  };
+
+export type Card = {
+    id: string;
+    title: string;
+    description?: string;
+    columnId?: string;
+    order: number;
+    createdAt?: any;
+}
+
+type ColumnInput = Omit<Column, 'id' | 'createdAt'>;
+
+type CardInput = Omit<Card, 'id' | 'createdAt'>;
+// Omit means same as card but without second argument
+
+
 
 export async function createBoard(userId:string, name: string, description: string) : Promise<CreateBoardResult> {
     // reference of boards subcollection for userId, under users collection
@@ -1275,15 +1638,82 @@ export async function createBoard(userId:string, name: string, description: stri
             name,
             description,
             createdAt: serverTimestamp(), // creation timestamp 
+            columnCount: 0,
         });
+
+        const boardPath = `users/${userId}/boards/${docRef.id}`;
+        const columnsCollection = collection(db, `${boardPath}/columns`);
+        const cardsCollection = collection(db, `${boardPath}/cards`);
+
+        await Promise.all([
+            addDoc(columnsCollection, { placeholder: true }).catch((err) => {
+                console.error("Failed to create columns placeholder:", err);
+            }),
+            addDoc(cardsCollection, { placeholder: true }).catch((err) => {
+                console.error("Failed to create cards placeholder:", err);
+            }),
+        ]);
+
         console.log("Document written with ID: ", docRef.id);
 
         return { id: docRef.id }; // return new board ID
-      } catch (e) {
-        console.error("Error adding document: ", e);
-        throw new Error("Failed to create board. Please try again later.")
+      } catch (err) {
+        console.error("Error adding document: ", err);
+        throw new Error("Failed to create board. Please try again later.");
       }
 
+}
+
+export async function createColumn(userId: string, boardId: string, columnName: string) : Promise<Column> {
+    // fetch board first, then fetch 
+   const boardRef = doc(db, `users/${userId}/boards/${boardId}`);
+   const columnRef = collection(boardRef, 'columns');
+
+   return runTransaction(db, async (transaction) => {
+    const boardSnap = await transaction.get(boardRef);
+    if(!boardSnap.exists()) {
+        throw new Error("Board doesn't exist.");
+    }
+
+    const boardData = boardSnap.data() as Board;
+    const currentCount = boardData.columnCount ?? 0; // ?? if null turn 0, like in swift
+
+    // create a new reference of the column in firestore and  set its' data
+    const newColumnRef = doc(columnRef);
+    transaction.set(newColumnRef, {
+        name: columnName,
+        order: currentCount,
+        createdAt: serverTimestamp(),
+    });
+
+    transaction.update(boardRef, { columnCount: currentCount + 1});
+
+    return {
+        id: newColumnRef.id,
+        name: columnName,
+        order: currentCount,
+    };
+   });
+}
+
+export async function createCard(userId: string, boardId: string, cardData: CardInput) : Promise<Card> {
+    const cardsCollection = collection(db, `users/${userId}/boards/${boardId}/cards`);
+
+    try {
+        const docRef = await addDoc(cardsCollection, {
+            ...cardData,
+            createdAt: serverTimestamp(),
+        });
+        console.log("Card created with ID: ", docRef.id);
+
+        return { 
+            id: docRef.id,
+            ...cardData 
+        };
+    } catch (err) {
+        console.error("Error adding card: ", err);
+        throw new Error("Failed to create card. Please try again later.");
+    }
 }
 
 export async function fetchBoards(userId: string) : Promise<Board[]> {
@@ -1297,44 +1727,84 @@ export async function fetchBoards(userId: string) : Promise<Board[]> {
     })) as Board[];
 }
 
-// export async function getBoard(userId: string, boardId: string) : Promise<Board> {
-//     // document reference so we can fetch it below
-//     const docRef = doc(db, `/users/${userId}/boards/${boardId}`);
-//     const docSnap = await getDoc(docRef);
-
-//     if(!docSnap.exists()) {
-//         throw new Error("No such board found.");
-//     }
-
-//     return {
-//         id: boardId,
-//         ...(docSnap.data() as Omit<Board, 'id'>), // ensure it matches the Board type with Omit
-//     }
-// }
-
-export async function getBoard(userId: string, boardId: string): Promise<Board> {
-    const docRef = doc(db, `/users/${userId}/boards/${boardId}`); // Correct Firestore path
-    console.log("Fetching document from Firestore path:", docRef.path);
-
+export async function getBoard(userId: string, boardId: string) : Promise<Board> {
+    // document reference so we can fetch it below
+    const docRef = doc(db, `users/${userId}/boards/${boardId}`);
     const docSnap = await getDoc(docRef);
 
-    if (!docSnap.exists()) {
-        console.error(`No document found at path: ${docRef.path}`);
+    if(!docSnap.exists()) {
         throw new Error("No such board found.");
     }
 
     return {
         id: boardId,
-        ...(docSnap.data() as Omit<Board, 'id'>), // Spread the data and ensure it matches the Board type
-    };
-}"
+        ...(docSnap.data() as Omit<Board, 'id'>), // ensure it matches the Board type with Omit
+    }
+}
+
+export async function getColumns(userId: string, boardId: string) : Promise<Column[]> {
+    const columnsRef = collection(db, `users/${userId}/boards/${boardId}/columns`);
+    const snapshot = await getDocs(columnsRef);
+
+    return snapshot.docs
+        .filter((doc) => !doc.data().placeholder) // ensure we don't return placeholders
+        .map((doc) => ({
+            id: doc.id,
+            ...(doc.data() as Omit<Column, 'id'>),
+        }));
+}
+
+export async function updateColumn(
+    userId: string,
+    boardId: string,
+    columnId: string,
+    data: Partial<Column>
+  ) {
+    const ref = doc(db, `users/${userId}/boards/${boardId}/columns/${columnId}`);
+    await updateDoc(ref, data);
+  }
+
+export async function getCards(userId: string, boardId: string) : Promise<Card[]> {
+    const cardsRef = collection(db,`users/${userId}/boards/${boardId}/cards`);
+    const snapshot = await getDocs(cardsRef);
+
+    return snapshot.docs
+        .filter((doc) => !doc.data().placeholder)    
+        .map(doc => ({
+        id: doc.id,
+        ...(doc.data() as Omit<Card, 'id'>),
+    }));
+}
+<End of file>
+
+app/actions/cardActions.ts:
+<Start of file>
+import { db } from "../utils/firebaseConfig";
+import { doc, updateDoc } from 'firebase/firestore';
+
+type UpdateCardData = {
+    columnId?: string;
+    order?: number;
+    title?: string;
+    description?: string;
+}
+
+export async function updateCard(userId: string, boardId: string, cardId: string, data:UpdateCardData) {
+    const cardDocRef = doc(db, `users/${userId}/boards/${boardId}/cards/${cardId}`);
+    await updateDoc(cardDocRef, data);
+}
+<End of file>
 
 app/page.tsx:
-"'use client';
+<Start of file>
+'use client';
+
 import LandingPage from "@/components/views/LandingPage";
+import Loading from "@/components/Loading";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useAuth } from '@/app/contexts/AuthContext';
+
 
 
 export default function Home() {
@@ -1343,17 +1813,19 @@ export default function Home() {
 
   useEffect(() => {
     if(!loading && user) {
-      router.push('/board');
+      router.push('/home');
     }
   }, [user,loading, router]);
 
-  if(loading) return <p>Loading...</p>
+  if(loading) return <Loading/>;
 
   return <LandingPage/>;
-}"
+}
+<End of file>
 
 app/globals.css:
-"@tailwind base;
+<Start of file>
+@tailwind base;
 @tailwind components;
 @tailwind utilities;
 
@@ -1396,17 +1868,21 @@ body {
 .btn-google {
   @apply flex items-center justify-center space-x-2 rounded px-4 py-2;
   @apply bg-red-500 text-white hover:bg-red-600;
-}"
+}
+<End of file>
 
 app/login/page.tsx:
-"import Login from '@/components/Login';
+<Start of file>
+import Login from '@/components/Login';
 
 export default function LoginPage() {
     return <Login/>;
-}"
+}
+<End of file>
 
 script.sh:
-"#!/usr/bin/env bash
+<Start of file>
+#!/usr/bin/env bash
 
 # Usage:
 #   ./collect-files.sh /path/to/folder /path/to/output.txt
@@ -1434,25 +1910,37 @@ while IFS= read -r FILE; do
     # Append the contents in quotes. 
     # NOTE: This will just wrap everything in one big set of quotes.
     # If the file has internal double quotes, that may interfere, so be cautious.
-    echo "\"$(cat "$FILE")\"" >> "$OUTPUT_FILE"
+    echo "<Start of file>" >> "$OUTPUT_FILE"
+    echo "$(cat "$FILE")" >> "$OUTPUT_FILE"
+    echo "<End of file>" >> "$OUTPUT_FILE"
     
     # Optionally, add a blank line after each entry for readability
     echo >> "$OUTPUT_FILE"
   fi
 
-done < <(find "$FOLDER" -type f)"
+done < <(find "$FOLDER" -type f)
+<End of file>
 
 components/forms/FormColumn.tsx:
-"'use client';
-import { FormEvent } from "react";
-
+<Start of file>
 // we explicitly mark a component to be a client component ('use client') as opposed to server component 
 // because we rely on browser(client) specific interactivity e.g. onSubmit.
+'use client';
+
+import { FormEvent } from "react";
+import { Board } from "@/app/actions/boardActions";
+import { createColumn, Column} from "@/app/actions/boardActions";
+
+ 
+type FormColumnProps = {
+    userId: string;
+    board: Board;
+    onColumnCreated: (newColumn: Column) => void;
+}
 
 
-export default function FormColumn() {
-
-    function handleNewColumn(event: FormEvent) {
+export default function FormColumn({ userId, board, onColumnCreated } : FormColumnProps) {
+    async function handleNewColumn(event: FormEvent) {
         event.preventDefault();
 
         // Downcasting here since TypeScript treats event.target as EventTarget, so we're specifying it's type directly
@@ -1461,8 +1949,17 @@ export default function FormColumn() {
         // the EventTarget doesn't have querySelector on the prototype chain so regular JS would just go down the prototype chain until it finds it
         // but as we know this can cause runtime errors so TS says "nope can't do that until I know it's definetely there"
         // In short 'as' is used for downcasting or upcasting
-        const input = (event.target as HTMLFormElement).querySelector('input');
-        const columnName = input?.value;
+        const input = (event.target as HTMLFormElement).querySelector('input#columnName') as HTMLInputElement || null;
+        const columnName = input?.value.trim();
+
+        if(!columnName) return; // don't create a column if the name is blank upon click
+
+        const newColumnData = await createColumn(userId, board.id, columnName);
+        onColumnCreated(newColumnData);
+
+        if(input) {
+            input.value = "";
+        }
     }
 
     return (
@@ -1477,10 +1974,12 @@ export default function FormColumn() {
             </div>
         </form>  
     );
-}"
+}
+<End of file>
 
 components/ProtectedRoute.tsx:
-"'use client';
+<Start of file>
+'use client';
 import { useAuth } from '@/app/contexts/AuthContext';
 import { useRouter } from "next/navigation";
 import { useEffect } from 'react';
@@ -1498,10 +1997,12 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
     if (loading || !user) return <p>Loading...</p>;
 
     return <>{children}</>;
-}"
+}
+<End of file>
 
 components/Login.tsx:
-"'use client';
+<Start of file>
+'use client';
 import { useState } from 'react';
 import { useAuth } from '@/app/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
@@ -1574,57 +2075,80 @@ export default function Login() {
             <GoogleLoginButton>Login with Google</GoogleLoginButton>
       </div>
     );
-}"
+}
+<End of file>
 
 components/Board.tsx:
-"'use client';
+<Start of file>
+'use client';
+import { ReactSortable } from 'react-sortablejs';
 import Column from './Column';
 import FormColumn from "./forms/FormColumn";
+import { Board as BoardType, Card, Column as ColumnType } from '@/app/actions/boardActions';
 import { useState } from 'react';
+import { updateColumn } from '@/app/actions/boardActions';
 
-const defaultColumns: {id:string, name:string, idx:number}[] = [
-    {id: 'asdf', name: 'todo', idx: 0},
-    {id: 'fdas', name: 'todo1', idx: 1},
-    {id: 'gfaf', name: 'todo2', idx: 2},
-];
-
-export type CardType = {
-    id: string | number;
-    name: string;
-    order: number;
-    columnId: string
+type BoardProps = {
+    userId: string;
+    boardId: string;
+    board: BoardType;
+    columns: ColumnType[];
+    cards: Card[];
 }
 
-const defaultCards: CardType[] = [
-    {id: "fdafd", name: "task 1", order:0, columnId: 'asdf'},
-    {id: "alksd", name: "task 2", order:1, columnId: 'fdas'},
-    {id: "cvagh", name: "task 3", order:2, columnId: 'gfaf'},
-    {id: "dacaz", name: "task 4", order:3, columnId: 'gfaf'},
-]
-
-export default function Board() {
-    const [cards, setCards] = useState(defaultCards);
-    const [columns, setColumns] = useState(defaultColumns);
+export default function Board({ userId, boardId, board, columns, cards } : BoardProps) {
+    const [boardColumns, setBoardColumns] = useState<ColumnType[]>(columns);
+    const [boardCards, setBoardCards] = useState<Card[]>(cards);
 
     return (
         <div className="flex gap-4">
-            {columns.map(column => (
-            <Column key={column.id} {...column} setCards={setCards} cards={cards.filter(card => card.columnId === column.id)}/>
-            ))}
-            <FormColumn/>
+            <ReactSortable
+            list={columns}
+            setList={(sorted) => {
+                setBoardColumns(sorted);
+
+                sorted.forEach((col, index) => {
+                    updateColumn(userId, boardId, col.id, {order: index});
+                })
+            }}
+            group="columns"
+            className='flex gap-4'>
+                {boardColumns.map((column) => (
+                <Column 
+                    key={column.id}
+                    userId={userId} 
+                    boardId={boardId} 
+                    column={column}
+                    cards={boardCards.filter((card) => card.columnId === column.id)}
+                    setCards={setBoardCards} // this allows each Column comp to update the parent state array
+                />
+                ))}
+            </ReactSortable>
+
+            <FormColumn userId={userId} board={board} onColumnCreated={(newCol) => {
+                setBoardColumns([...boardColumns, newCol]);
+            }} />
         </div>
     );
-}"
+}
+<End of file>
 
 components/boards/BoardClient.tsx:
-"// this is the client part of the dynamic boardId page which is supposed to render on client
+<Start of file>
+// this is the client part of the dynamic boardId page which is supposed to render on client
 'use client';
 
+// Object imports
 import { useEffect, useState } from 'react';
-import { getAuth } from 'firebase/auth';
-import { getBoard } from '@/app/actions/boardActions';
-import { Board as BoardType } from '@/app/actions/boardActions';
+import { getBoard, Board as BoardType} from '@/app/actions/boardActions';
+import { getColumns, Column } from '@/app/actions/boardActions';
+import { getCards, Card } from '@/app/actions/boardActions';
+
+// Component imports
 import Loading from '@/components/Loading';
+import Board from '../Board';
+import FormColumn from '../forms/FormColumn';
+import { useAuth } from '@/app/contexts/AuthContext';
 
 type BoardClientProps = {
     userId: string,
@@ -1633,55 +2157,88 @@ type BoardClientProps = {
 
 export default function BoardClient({ userId, boardId } : BoardClientProps) {
     const [board, setBoard] = useState<BoardType | null>(null);
+    const [columns, setColumns] = useState<Column[]>([]);
+    const [cards, setCards] = useState<Card[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
 
+    const { user } = useAuth();
     useEffect(() => {
-        const auth = getAuth();
-        const user = auth.currentUser || '';
+        async function fetchData() {
+            setLoading(true);
 
-        if (!user || typeof user === "string") {
-            setError('User not authenticated. Please log in.');
-            setLoading(false);
-            return;
-        }
+            if(!user) return; // make sure user is authenticated
 
-        async function fetchBoard() {
             try {
-                const boardData = await getBoard(userId, boardId);
+              
+
+                const boardData = await getBoard(user?.uid, boardId);
+                console.log("Step 1 done.")
+                const columnData = await getColumns(user?.uid, boardId);
+                console.log("Step 2 done.");
+                const cardsData = await getCards(user?.uid, boardId);
+                console.log("Step 3 done.");
+
                 setBoard(boardData);
+                setColumns(columnData);
+                setCards(cardsData);
             } catch (err) {
-                console.error("Failed to fetch board: ", err);
-                setError("Board not found, or failed to fetch");
+                console.error("Failed to fetch data for board: ", err);
+                setError("Failed to fetch data for board in BoardClient.");
             } finally {
                 setLoading(false);
             }
         }
 
-        fetchBoard();
-    }, [userId, boardId]);
+        fetchData();
+    }, [user, boardId]);
 
     if(loading) return <Loading/>;
-
     if(error) return <p>{error}</p>;
-
     if(!board) return <p>Board not found</p>;
 
     return (
         <div>
-            <h1 className="text-4xl mb-4">{board.name}</h1>
-            <p className="text-gray-600">{board.description}</p>
-            <hr />
-            <p className="text-sm text-gray-500">
-                Created on: {new Date(board.createdAt.seconds * 1000).toLocaleDateString()}
-            </p>
-        </div>
+      {/* The board info at the top */}
+      <h1 className="text-4xl mb-4">{board.name}</h1>
+      <p className="text-gray-600">{board.description}</p>
+      <hr />
+      <p className="text-sm text-gray-500">
+        Created on:{" "}
+        {new Date(board.createdAt.seconds * 1000).toLocaleDateString()}
+      </p>
+
+      <section>
+        {columns.length === 0 ? (
+          <div>
+            <p>This board has no columns. Create one to get started:</p>
+            <FormColumn
+              userId={userId}
+              board={board}
+              onColumnCreated={(newColumn : Column) => {
+                setColumns([...columns, newColumn]);
+              }}
+            />
+          </div>
+        ) : (
+          <Board
+            board={board}
+            userId={userId}
+            boardId={boardId}
+            columns={columns}
+            cards={cards}
+          />
+        )}
+      </section>
+      </div>
     );
 
-}"
+}
+<End of file>
 
 components/Header.tsx:
-"'use client';
+<Start of file>
+'use client';
 import Link from 'next/link';
 import LogoutButton from './authentication/LogoutButton';
 import { getAuth } from 'firebase/auth';
@@ -1710,17 +2267,21 @@ export default function Header() {
             </header>)}
             </>
         );
-}"
+}
+<End of file>
 
 components/Loading.tsx:
-"export default function Loading() {
+<Start of file>
+export default function Loading() {
     return (
         <p>Loading...</p>
     );
-}"
+}
+<End of file>
 
 components/views/LandingPage.tsx:
-"'use client'
+<Start of file>
+'use client'
 import Link from 'next/link';
 
 export default function LandingPage() {
@@ -1748,10 +2309,12 @@ export default function LandingPage() {
             </div>
         </div>
     );
-}"
+}
+<End of file>
 
 components/authentication/LogoutButton.tsx:
-"import { useAuth } from '@/app/contexts/AuthContext';
+<Start of file>
+import { useAuth } from '@/app/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 
 export default function LogoutButton() {
@@ -1774,10 +2337,12 @@ export default function LogoutButton() {
         //     Logout
         // </Link>
     );
-}"
+}
+<End of file>
 
 components/authentication/Register.tsx:
-"'use client';
+<Start of file>
+'use client';
 import { useState } from 'react';
 import { createUserWithEmailAndPassword, updateProfile, getAuth } from 'firebase/auth';
 import { auth } from '@/app/utils/firebaseConfig';
@@ -1891,10 +2456,12 @@ export default function Register() {
             <GoogleLoginButton>Register with Google</GoogleLoginButton>
       </div>
     );
-}"
+}
+<End of file>
 
 components/authentication/GoogleLoginButton.tsx:
-"'use client'
+<Start of file>
+'use client'
 import { signInWithPopup, updateProfile } from 'firebase/auth';
 import { auth, googleProvider } from '@/app/utils/firebaseConfig';
 import { useRouter } from 'next/navigation';
@@ -1924,39 +2491,78 @@ export default function GoogleLoginButton({ children }:any){
             {children}
         </button>
     );
-}"
+}
+<End of file>
 
 components/Column.tsx:
-"import { ReactSortable } from "react-sortablejs";
-import { CardType } from "./Board";
-import { SetStateAction } from "react";
+<Start of file>
+'use client';
+
+import { ReactSortable } from "react-sortablejs";
+import { Dispatch, SetStateAction } from "react";
+import { useState } from 'react';
+import { Card } from "@/app/actions/boardActions";
+import { createCard } from "@/app/actions/boardActions";
+import { Column as ColumnType } from "@/app/actions/boardActions";
+import { updateCard } from "@/app/actions/cardActions";
 
 // this is called type alias and is used to define the shape or the data types of the props in the component
 // you can use an interface here as well, but using type alias is not only common practice but also offers more flexibility because of
 // the ability to define complex types like union or intersection and also serve a specific puspose
 // interfaces can be inherited while types cannot 
 type ColumnProps = {
-    id: string;
-    name: string;
-    idx: number;
-    cards: CardType[];
-    setCards: SetStateAction<any>;
+    userId: string;
+    boardId: string;
+    column: ColumnType;
+    cards: Card[];
+    setCards: Dispatch<SetStateAction<Card[]>>;
 }
 
-export default function Column({ id, name, cards, setCards }: ColumnProps) {
-    function setCardsForColumn(sortedCards: CardType[], newColumnId: string) {
-        setCards((prevCards: CardType[]) => {
-            const unsortedCards = [...prevCards]; // destruct with spread and give us the prev state
+export default function Column({ userId, boardId, column, cards, setCards }: ColumnProps) {
+    const [isAddingCard, setIsAddingCard] = useState<boolean>(false);
+    const [newCardTitle, setNewCardTitle] = useState<string>('');
+
+    function handleAddCard() {
+        setIsAddingCard(true);
+    }
+
+    async function handleCreateCard() {
+        if(!newCardTitle.trim()) {
+            setIsAddingCard(false);
+            return; // ignore empty cards
+        }
+
+        const newCardData = await createCard(userId, boardId, {
+            title: newCardTitle,
+            columnId: column.id,
+            order: cards.length,
+        });
+
+        setCards((prevState) => [...prevState, newCardData]);
+
+        // cleanup
+        setNewCardTitle("");
+        setIsAddingCard(false);
+    }
+
+    /**
+   * Called whenever ReactSortable re-sorts or moves cards into this column.
+   * @param sortedCards - The new array of cards in this column after sorting
+   * @param newColumnId - The ID of the column that owns these cards
+   */
+    function setCardsForColumn(sortedCards: Card[], newColumnId: string) {
+        setCards((prevCards: Card[]) => {
+            const updated = [...prevCards]; // destruct with spread and give us the prev state
             
-            sortedCards.forEach((sortedCard: CardType, newOrder: number) => {
-                const foundCard = unsortedCards.find((card) => card.id === sortedCard.id)
+            sortedCards.forEach((sortedCard: Card, newOrder: number) => {
+                const foundCard = updated.find((card) => card.id === sortedCard.id)
                 if(foundCard) {
                     foundCard.columnId = newColumnId;
                     foundCard.order = newOrder; // update the new position
                 }
             });
             
-            return unsortedCards.sort((a,b) => {
+            updated.sort((a,b) => {
                 if(a.columnId === b.columnId) {
                     return a.order - b.order;
                 }
@@ -1964,28 +2570,60 @@ export default function Column({ id, name, cards, setCards }: ColumnProps) {
             });
             // return the new processed cards, sorted by order so the reordering works, as the new state of the cards
             // which is being called when anythin in the ReactSortable changes, specifically on the list of cards 
+
+            return updated;
+        });
+
+        sortedCards.forEach(async (sortedCard, newOrder) => {
+            await updateCard(userId, boardId, sortedCard.id, {
+              columnId: newColumnId,
+              order: newOrder,
+            });
         });
     }
 
-    return (
-        <div className="w-48 shadow-md bg-white rounded-md p-4">
-            <h3>{name}</h3>
-            <ReactSortable 
-                list={cards} 
-                setList={(updatedCards) => setCardsForColumn(updatedCards, id)} 
-                group="cards"
+
+        return (
+            <div className="w-60 shadow-md bg-white rounded-md p-4">
+                <h3 className="font-semibold">{column.name}</h3>
+
+                {/* Sortable area for existing cards */}
+                <ReactSortable
+                list={cards}
+                setList={(updated) => setCardsForColumn(updated, column.id)}
+                group="cards" // ensures cross-column drag is allowed
                 className="min-h-32 p-1 flex flex-col space-y-1"
                 ghostClass="opacity-30"
-            >
-                {cards.map(card => (
+                >
+                    {cards.map((card) => (
                     <div key={card.id} className="border bg-white my-2 p-4 rounded-md">
-                        <span>{card.name}</span>
+                    <span>{card.title}</span>
                     </div>
-                ))}
-            </ReactSortable>
-        </div>
-    );
-}"
+                    ))}
+                </ReactSortable>
 
-output.txt:"
-
+                {/* Add Card Button / Input */}
+                {isAddingCard ? (
+                <div className="mt-2">
+                <input
+                className="border p-1 w-full rounded"
+                autoFocus
+                value={newCardTitle}
+                onChange={(e) => setNewCardTitle(e.target.value)}
+                onBlur={handleCreateCard}
+                onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                handleCreateCard();
+                }
+                }}
+                />
+                </div>
+                ) : (
+                <button className="btn-secondary mt-2" onClick={handleAddCard}>
+                + Add Card
+                </button>
+                )}
+            </div>
+     );
+}
+<End of file>

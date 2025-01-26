@@ -26,7 +26,9 @@ while IFS= read -r FILE; do
     # Append the contents in quotes. 
     # NOTE: This will just wrap everything in one big set of quotes.
     # If the file has internal double quotes, that may interfere, so be cautious.
-    echo "\"$(cat "$FILE")\"" >> "$OUTPUT_FILE"
+    echo "<Start of file>" >> "$OUTPUT_FILE"
+    echo "$(cat "$FILE")" >> "$OUTPUT_FILE"
+    echo "<End of file>" >> "$OUTPUT_FILE"
     
     # Optionally, add a blank line after each entry for readability
     echo >> "$OUTPUT_FILE"

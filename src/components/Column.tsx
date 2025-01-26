@@ -86,45 +86,49 @@ export default function Column({ userId, boardId, column, cards, setCards }: Col
 
 
         return (
-            <div className="w-60 shadow-md bg-white rounded-md p-4">
+                <div className="w-60 shadow-md bg-white rounded-md p-4">
                 <h3 className="font-semibold">{column.name}</h3>
 
                 {/* Sortable area for existing cards */}
                 <ReactSortable
-                list={cards}
-                setList={(updated) => setCardsForColumn(updated, column.id)}
-                group="cards" // ensures cross-column drag is allowed
-                className="min-h-32 p-1 flex flex-col space-y-1"
-                ghostClass="opacity-30"
+                    list={cards}
+                    setList={(updated) => {
+                        setCardsForColumn(updated, column.id);
+
+                        // TODO: Implement updateCards for concurrency of multiple users.
+                    }}
+                    group="cards" // ensures cross-column drag is allowed
+                    className="p-1 flex flex-col space-y-1"
+                    ghostClass="opacity-30"
                 >
-                {cards.map((card) => (
-                <div key={card.id} className="border bg-white my-2 p-4 rounded-md">
-                <span>{card.title}</span>
-                </div>
-                ))}
+                    {cards.map((card) => (
+                    <div key={card.id} className="border bg-white my-2 p-4 rounded-md">
+                    <span>{card.title}</span>
+                    </div>
+                    ))}
                 </ReactSortable>
 
                 {/* Add Card Button / Input */}
                 {isAddingCard ? (
-                <div className="mt-2">
-                <input
-                className="border p-1 w-full rounded"
-                autoFocus
-                value={newCardTitle}
-                onChange={(e) => setNewCardTitle(e.target.value)}
-                onBlur={handleCreateCard}
-                onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                handleCreateCard();
-                }
-                }}
-                />
-                </div>
+                    <div className="mt-2">
+                        <input
+                            className="border p-1 w-full rounded"
+                            autoFocus
+                            value={newCardTitle}
+                            onChange={(e) => setNewCardTitle(e.target.value)}
+                            onBlur={handleCreateCard}
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                handleCreateCard();
+                                }
+                            }}
+                        />
+                    </div>
                 ) : (
-                <button className="btn-secondary mt-2" onClick={handleAddCard}>
-                + Add Card
-                </button>
+                    <button className="btn-secondary mt-2" onClick={handleAddCard}>
+                    + Add Card
+                    </button>
                 )}
-            </div>
+                </div>
      );
 }
