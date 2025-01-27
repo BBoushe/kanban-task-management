@@ -1,5 +1,5 @@
 import { db } from "../utils/firebaseConfig";
-import { doc, updateDoc } from 'firebase/firestore';
+import { deleteDoc, doc, updateDoc } from 'firebase/firestore';
 
 type UpdateCardData = {
     columnId?: string;
@@ -11,4 +11,9 @@ type UpdateCardData = {
 export async function updateCard(userId: string, boardId: string, cardId: string, data:UpdateCardData) {
     const cardDocRef = doc(db, `users/${userId}/boards/${boardId}/cards/${cardId}`);
     await updateDoc(cardDocRef, data);
+}
+
+export async function deleteCard(userId: string, boardId: string, cardId:string) {
+    const cardDocRef = doc(db, `users/${userId}/boards/${boardId}/cards/${cardId}`);
+    await deleteDoc(cardDocRef);
 }

@@ -1,6 +1,6 @@
 import { db } from '@/app/utils/firebaseConfig';
 import Column from '@/components/Column';
-import { query, getDocs, updateDoc, addDoc, collection, serverTimestamp, doc, getDoc, Transaction, orderBy } from 'firebase/firestore';
+import { query, getDocs, updateDoc, addDoc, collection, serverTimestamp, doc, getDoc, Transaction, orderBy, deleteDoc } from 'firebase/firestore';
 import { runTransaction } from 'firebase/firestore'; // this is just for testing the transaction function of firestore, and is not that important for this demo
 import { useAuth } from '../contexts/AuthContext';
 
@@ -78,6 +78,32 @@ export async function createBoard(userId:string, name: string, description: stri
         throw new Error("Failed to create board. Please try again later.");
       }
 
+}
+
+// firestore doesn't cascade subcollection on delete, as they are all treated as seperate entities
+// there are 3 options here: 1. delete each subcollection manually; 2. use a firebase extension; 
+// 3. write a firebase server function (which will recursevilly delete all subcollections and documents etc) -> this is just writting the extension ourselves
+// because I'm having some trouble installing the extension for some reason, I have decided to take the 1st approach
+export async function deleteBoard(userId: string, boardId: string) {
+    const boardPath = `users/${userId}/boards/${boardId}`;
+
+    const boardRef = doc(db, boardPath);
+    const columnsRef = collection(boardRef, 'columns');
+    const cardsRef = collection(boardRef, 'cards');
+    
+    const columnsSnapshot = await getDocs(columnsRef);
+    const cardsSnapshot = await getDocs(cardsRef);
+
+    for(const column of columnsSnapshot.docs){
+        await deleteDoc(column.ref);
+    }
+
+    for(const cards of cardsSnapshot.docs){
+        await deleteDoc(cards.ref); // ref is the reference to that doc within the subcollection
+    }
+
+     // placing here because it will have no subcollections
+    await deleteDoc(boardRef); 
 }
 
 export async function createColumn(userId: string, boardId: string, columnName: string) : Promise<Column> {
