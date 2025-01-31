@@ -4,7 +4,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { useRouter } from "next/navigation";
 import { createBoard } from "../actions/boardActions";
 
-export default function CerateBoardPage() {
+export default function CreateBoardPage() {
     // const { user } = useAuth(); // fetch current user authentication
     const { user } = useAuth();
     const router = useRouter();

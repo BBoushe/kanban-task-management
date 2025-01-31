@@ -1,25 +1,16 @@
+/* app/globals.css */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-/* :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
 
 body {
   color: var(--foreground);
   background: var(--background);
   font-family: Arial, Helvetica, sans-serif;
-} */
-
+  /* Ensure the body takes full height and doesn't introduce extra scroll */
+  height: 100vh;
+  overflow: hidden;
+} 
 
 @layer components {
   .btn-primary {
@@ -41,7 +32,6 @@ body {
   .alert {
     @apply bg-red-500 text-white font-bold py-3 px-4 rounded;
   }
-
 }
 
 .btn-google {
@@ -51,4 +41,23 @@ body {
 
 .center {
   text-align: center;
+}
+
+/* Optional: Customize scrollbars for better UX */
+::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1; 
+}
+
+::-webkit-scrollbar-thumb {
+  background: #888; 
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555; 
 }

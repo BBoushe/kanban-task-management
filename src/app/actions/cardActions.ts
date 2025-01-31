@@ -9,14 +9,14 @@ type UpdateCardData = {
 }
 
 export async function updateCard(userId: string, boardId: string, cardId: string, data:UpdateCardData) {
-    if (userId === "") return;
-    
+    if (!userId) return;
+
     const cardDocRef = doc(db, `users/${userId}/boards/${boardId}/cards/${cardId}`);
     await updateDoc(cardDocRef, data);
 }
 
 export async function deleteCard(userId: string, boardId: string, cardId:string) {
-    if (userId === "") return;
+    if (!userId) return;
 
     const cardDocRef = doc(db, `users/${userId}/boards/${boardId}/cards/${cardId}`);
     await deleteDoc(cardDocRef);

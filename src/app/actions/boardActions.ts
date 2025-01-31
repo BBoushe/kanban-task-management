@@ -1,8 +1,6 @@
 import { db } from '@/app/utils/firebaseConfig';
-import Column from '@/components/Column';
 import { query, getDocs, updateDoc, addDoc, collection, serverTimestamp, doc, getDoc, Transaction, orderBy, deleteDoc } from 'firebase/firestore';
 import { runTransaction } from 'firebase/firestore'; // this is just for testing the transaction function of firestore, and is not that important for this demo
-import { useAuth } from '../contexts/AuthContext';
 import { Column as ColumnType } from "./columnActions";
 
 
@@ -79,8 +77,8 @@ export async function deleteBoard(userId: string, boardId: string) {
         const boardPath = `users/${userId}/boards/${boardId}`;
 
         const boardRef = doc(db, boardPath);
-        const columnsRef = collection(boardRef, 'columns');
-        const cardsRef = collection(boardRef, 'cards');
+        const columnsRef = collection(db, `users/${userId}/boards/${boardId}/columns`);
+        const cardsRef = collection(db, `users/${userId}/boards/${boardId}/cards`);
         
         const columnsSnapshot = await getDocs(columnsRef);
         const cardsSnapshot = await getDocs(cardsRef);

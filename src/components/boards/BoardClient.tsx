@@ -56,7 +56,7 @@ export default function BoardClient({ boardId } : BoardClientProps) {
     if(!board) return <p>Board not found</p>;
 
     return (
-        <div>
+        <div className='flex-none w-full'>
       {/* The board info at the top */}
       <h1 className="text-4xl mb-4">{board.name}</h1>
       <p className="text-gray-600">{board.description}</p>

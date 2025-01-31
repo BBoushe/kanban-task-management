@@ -1,4 +1,3 @@
-'use client';
 import { ReactSortable } from 'react-sortablejs';
 import Column from './Column';
 import FormColumn from "./forms/FormColumn";
@@ -6,7 +5,7 @@ import { Board as BoardType, Card } from '@/app/actions/boardActions';
 import { useState } from 'react';
 import { updateColumn } from '@/app/actions/columnActions';
 import { useAuth } from '@/app/contexts/AuthContext';
-import { Column as ColumnType} from '@/app/actions/columnActions';
+import { Column as ColumnType } from '@/app/actions/columnActions';
 import { deleteColumn } from '@/app/actions/columnActions';
 import { deleteCard } from '@/app/actions/cardActions';
 
@@ -27,11 +26,9 @@ export default function Board({ boardId, columns, cards } : BoardProps) {
         if (!userId) return;
     
         try {
-            // Find the column to delete
             const columnToDelete = boardColumns.find(col => col.id === columnId);
             if (!columnToDelete) return;
     
-            // Delete all cards in the column
             const cardsInColumn = boardCards.filter(card => card.columnId === columnId);
             await Promise.all(cardsInColumn.map(card => deleteCard(userId, boardId, card.id)));
     
@@ -45,35 +42,33 @@ export default function Board({ boardId, columns, cards } : BoardProps) {
         }
     }
 
-
     return (
-        <div className="flex gap-4 items-start p-4 bg-gray-100 min-h-screen overflow-x-auto">
+        <div className="flex flex-row gap-4 min-h-[83vh] h-full overflow-x-auto items-start">
             <ReactSortable
-            list={boardColumns}
-            setList={(sorted) => {
-                setBoardColumns(sorted);
-
-                sorted.forEach((col, index) => {
-                    updateColumn(userId || "", boardId, col.id, {order: index});
-                })
-            }}
-            group="columns"
-            className='flex gap-4 items-start'>
+                list={boardColumns}
+                setList={(sorted) => {
+                    setBoardColumns(sorted);
+                    sorted.forEach((col, index) => {
+                        updateColumn(userId || "", boardId, col.id, { order: index });
+                    })
+                }}
+                group="columns"
+                className='flex flex-row gap-4 items-start'
+            >
                 {boardColumns.map((column) => (
-                <Column 
-                    key={column.id}
-                    boardId={boardId} 
-                    column={column}
-                    cards={boardCards.filter((card) => card.columnId === column.id)}
-                    setCards={setBoardCards} // this allows each Column comp to update the parent state array
-                    onDeleteColumn={handleDeleteColumn}
-                />
+                    <Column 
+                        key={column.id}
+                        boardId={boardId} 
+                        column={column}
+                        cards={boardCards.filter((card) => card.columnId === column.id)}
+                        setCards={setBoardCards}
+                        onDeleteColumn={handleDeleteColumn}
+                    />
                 ))}
+                <FormColumn boardId={boardId} onColumnCreated={(newCol) => {
+                    setBoardColumns([...boardColumns, newCol]);
+                }} />
             </ReactSortable>
-
-            <FormColumn boardId={boardId} onColumnCreated={(newCol) => {
-                setBoardColumns([...boardColumns, newCol]);
-            }} />
         </div>
     );
 }

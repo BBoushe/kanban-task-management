@@ -1,6 +1,5 @@
 "use client";
-import { useAuth } from '@/app/contexts/AuthContext';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 
 type OptionProps = {
@@ -12,6 +11,24 @@ type OptionProps = {
 
 export default function Options({ onEdit, onDelete, specialAction } : OptionProps) {
     const [isOpen, setIsOpen] = useState(false);
+    const menuRef = useRef<HTMLDivElement | null>(null); // reference for detecting outside clicks
+
+    useEffect(() =>{
+        function handleClickOutside(event: MouseEvent) {
+            if(menuRef.current && !menuRef.current.contains(event.target as Node)) {
+                setIsOpen(false);
+            }
+        }
+
+        if(isOpen) {
+            document.addEventListener("mousedown", handleClickOutside);
+        }
+
+        // cleanup on unmount
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+        }
+    }, [isOpen]);
 
     function toggleMenu() {
         setIsOpen((prev) => !prev); // cool way to avoid checking the state first, give me the opposite state of whatever it is
@@ -25,42 +42,39 @@ export default function Options({ onEdit, onDelete, specialAction } : OptionProp
     };
 
     async function handleDelete() {
-        await onDelete();
         setIsOpen(false);
-
+        await onDelete();
     };
 
     async function handleSpecialAction() {
         if(specialAction){
-            await specialAction();
             setIsOpen(false);
+            await specialAction();
         }
     };
 
     return (
-        <div className='relative inline-block'>
+        <div className='relative' ref={menuRef}>
             <button onClick={toggleMenu}
-                onBlur={toggleMenu} 
                 className='flex items-center justify-center w-6 h-6 text-gray-500 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-0 rounded box-border'
                 aria-haspopup='true'
-                aria-expanded={isOpen}
                 aria-label='Options'>
-                <span className='flex items-center justify-center h-full text-xl leading-none align-middle pb-3'>...</span>
+                <span className='flex items-center justify-center h-full text-xl leading-none align-middle'>...</span>
             </button>
 
-            {/* toggled menu */}
+            {/* Toggled Menu */}
             {isOpen && (
-                <div className='flex flex-col absolute left-0 mt-1 bg-white border rounded shadow-lg z-10'>
-                    <button onClick={handleEdit} className="block w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100">
+                <div className='absolute right-0 mt-1 bg-white border rounded shadow-lg z-10 w-24'>
+                    <button onClick={handleEdit} className="block w-full px-2 py-1 text-left text-sm text-gray-700 hover:bg-gray-100">
                         Edit
                     </button>
-                    <button onClick={handleDelete} className="flex w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-100">
+                    <button onClick={handleDelete} className="block w-full px-2 py-1 text-left text-sm text-red-600 hover:bg-red-100">
                         Delete
                     </button>
                     {specialAction && (
-                        <button onClick={handleSpecialAction} className="flex w-full px-4 py-2 text-left text-sm text-blue-600 hover:bg-blue-100 whitespace-nowrap">
-                        Clear Cards
-                    </button>
+                        <button onClick={handleSpecialAction} className="block w-full px-2 py-1 text-left text-sm text-blue-600 hover:bg-blue-100">
+                            Clear Cards
+                        </button>
                     )}
                 </div>
             )}

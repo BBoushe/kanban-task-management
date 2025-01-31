@@ -22,8 +22,8 @@ export default function Card({ boardId, card, onDelete } : CardProps) {
     }
 
     return (
-        <div className="flex items-center justify-between border bg-white my-2 p-3 rounded-md">
-            <span className="flex-auto">{card.title}</span>
+        <div className="flex items-start justify-between border bg-white p-3 rounded-md shadow hover:bg-gray-50">
+            <span className="flex-auto break-words">{card.title}</span>
             <Options boardId={boardId} onEdit={() => handleEdit()} onDelete={handleDelete}/>
         </div>
     );

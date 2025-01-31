@@ -11,23 +11,20 @@ export default function Header() {
 
     if(loading || !auth) return null;
 
-        return (
-            <>
-            {user && (<header className="m-3 bg-gray-500 rounded p-4 flex justify-between items-center text-white">
-                <h1 className="text-2xl font-bold">
-                  <Link href="/home" className="logo hover:underline">
-                    Trello Clone
-                  </Link>
-                  <Link href='/create-board' className='btn btn-primary mx-5'>Create</Link>
-                  <Link href='/home' className='btn btn-boards'>Boards</Link>
-                </h1>
-                
-                <div className="flex space-x-4 items-center">
-                  {/* Display Name */}
-                  {user?.displayName && <span className='font-medium mx-2'>Hi, {user?.displayName}</span>}
-                  <LogoutButton/>
-                </div>
-            </header>)}
-            </>
-        );
+    return (
+      <header className="sticky top-0 z-50 bg-gray-800 p-4 flex justify-between items-center text-white shadow-md">
+          <h1 className="text-2xl font-bold flex items-center space-x-5">
+              <Link href="/home" className="logo hover:underline">
+                  Trello Clone
+              </Link>
+              <Link href='/create-board' className='btn-primary px-3 py-1 rounded'>Create</Link>
+              <Link href='/home' className='btn-boards px-3 py-1 rounded'>Boards</Link>
+          </h1>
+          
+          <div className="flex space-x-4 items-center">
+              {user?.displayName && <span className='font-medium mx-2'>Hi, {user.displayName}</span>}
+              <LogoutButton />
+          </div>
+      </header>
+  );
 }
