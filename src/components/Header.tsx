@@ -18,7 +18,10 @@ export default function Header() {
                   <Link href="/home" className="logo hover:underline">
                     Trello Clone
                   </Link>
+                  <Link href='/create-board' className='btn btn-primary mx-5'>Create</Link>
+                  <Link href='/home' className='btn btn-boards'>Boards</Link>
                 </h1>
+                
                 <div className="flex space-x-4 items-center">
                   {/* Display Name */}
                   {user?.displayName && <span className='font-medium mx-2'>Hi, {user?.displayName}</span>}

@@ -3,14 +3,12 @@ import Column from '@/components/Column';
 import { query, getDocs, updateDoc, addDoc, collection, serverTimestamp, doc, getDoc, Transaction, orderBy, deleteDoc } from 'firebase/firestore';
 import { runTransaction } from 'firebase/firestore'; // this is just for testing the transaction function of firestore, and is not that important for this demo
 import { useAuth } from '../contexts/AuthContext';
+import { Column as ColumnType } from "./columnActions";
+
 
 type CreateBoardResult = {
     id: string;
 };
-
-type CreateCardResult = {
-    id: string;
-}
 
 export type Board = {
     id: string;
@@ -18,15 +16,7 @@ export type Board = {
     description: string;
     createdAt: any;
     columnCount?: number;
-    cards: Card[];
 }
-
-export type Column = {
-    id: string;
-    name: string;
-    order?: number;
-    createdAt?: any;
-  };
 
 export type Card = {
     id: string;
@@ -37,7 +27,7 @@ export type Card = {
     createdAt?: any;
 }
 
-type ColumnInput = Omit<Column, 'id' | 'createdAt'>;
+type ColumnInput = Omit<ColumnType, 'id' | 'createdAt'>;
 
 type CardInput = Omit<Card, 'id' | 'createdAt'>;
 // Omit means same as card but without second argument
@@ -85,28 +75,33 @@ export async function createBoard(userId:string, name: string, description: stri
 // 3. write a firebase server function (which will recursevilly delete all subcollections and documents etc) -> this is just writting the extension ourselves
 // because I'm having some trouble installing the extension for some reason, I have decided to take the 1st approach
 export async function deleteBoard(userId: string, boardId: string) {
-    const boardPath = `users/${userId}/boards/${boardId}`;
+    try {
+        const boardPath = `users/${userId}/boards/${boardId}`;
 
-    const boardRef = doc(db, boardPath);
-    const columnsRef = collection(boardRef, 'columns');
-    const cardsRef = collection(boardRef, 'cards');
-    
-    const columnsSnapshot = await getDocs(columnsRef);
-    const cardsSnapshot = await getDocs(cardsRef);
+        const boardRef = doc(db, boardPath);
+        const columnsRef = collection(boardRef, 'columns');
+        const cardsRef = collection(boardRef, 'cards');
+        
+        const columnsSnapshot = await getDocs(columnsRef);
+        const cardsSnapshot = await getDocs(cardsRef);
 
-    for(const column of columnsSnapshot.docs){
-        await deleteDoc(column.ref);
+        for(const column of columnsSnapshot.docs){
+            await deleteDoc(column.ref);
+        }
+
+        for(const card of cardsSnapshot.docs){
+            await deleteDoc(card.ref); // ref is the reference to that doc within the subcollection
+        }
+
+        // placing here because it will have no subcollections
+        await deleteDoc(boardRef); 
+    } catch (error) {
+        console.error("Error deleteting board:", error);
+        throw error;
     }
-
-    for(const cards of cardsSnapshot.docs){
-        await deleteDoc(cards.ref); // ref is the reference to that doc within the subcollection
-    }
-
-     // placing here because it will have no subcollections
-    await deleteDoc(boardRef); 
 }
 
-export async function createColumn(userId: string, boardId: string, columnName: string) : Promise<Column> {
+export async function createColumn(userId: string, boardId: string, columnName: string) : Promise<ColumnType> {
     // fetch board first, then fetch 
    const boardRef = doc(db, `users/${userId}/boards/${boardId}`);
    const columnRef = collection(boardRef, 'columns');
@@ -184,7 +179,7 @@ export async function getBoard(userId: string, boardId: string) : Promise<Board>
     }
 }
 
-export async function getColumns(userId: string, boardId: string) : Promise<Column[]> {
+export async function getColumns(userId: string, boardId: string) : Promise<ColumnType[]> {
     const columnsRef = collection(db, `users/${userId}/boards/${boardId}/columns`);
     const columnsQuery = query(columnsRef, orderBy("order"));
     const snapshot = await getDocs(columnsQuery);
@@ -193,19 +188,9 @@ export async function getColumns(userId: string, boardId: string) : Promise<Colu
         .filter((doc) => !doc.data().placeholder) // ensure we don't return placeholders
         .map((doc) => ({
             id: doc.id,
-            ...(doc.data() as Omit<Column, 'id'>),
+            ...(doc.data() as Omit<ColumnType, 'id'>),
         }));
 }
-
-export async function updateColumn(
-    userId: string,
-    boardId: string,
-    columnId: string,
-    data: Partial<Column>
-  ) {
-    const ref = doc(db, `users/${userId}/boards/${boardId}/columns/${columnId}`);
-    await updateDoc(ref, data);
-  }
 
 export async function getCards(userId: string, boardId: string) : Promise<Card[]> {
     const cardsRef = collection(db,`users/${userId}/boards/${boardId}/cards`);

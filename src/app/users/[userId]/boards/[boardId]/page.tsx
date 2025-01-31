@@ -11,17 +11,16 @@ import ProtectedRoute from '@/components/ProtectedRoute';
 
 type BoardPageProps = {
     params: Promise<{
-        userId: string;
         boardId: string; // will be used to specify dynamic board route
     }>;
 };
 
 export default async function BoardPage({ params }: BoardPageProps) {
-    const {userId, boardId} = await params; // params are asynchronious in nextjs 15
+    const {boardId} = await params; // params are asynchronious in nextjs 15
     
     return (
         <ProtectedRoute>
-            <BoardClient userId={userId} boardId={boardId}/>
+            <BoardClient boardId={boardId}/>
         </ProtectedRoute>
     )
 }

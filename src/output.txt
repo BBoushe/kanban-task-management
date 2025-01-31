@@ -7,6 +7,8 @@ import Link from "next/link";
 import { useAuth } from "../contexts/AuthContext";
 import { useEffect, useState } from "react";
 import { fetchBoards } from "../actions/boardActions";
+import Options from "@/components/options/Options";
+import { deleteBoard } from "../actions/boardActions";
 
 
 export default function HomePage() {
@@ -17,7 +19,14 @@ export default function HomePage() {
         if (user) {
             fetchBoards(user.uid).then(setBoards); // fetch boards for the logged in user then set the state to be those boards
         }
-    }, [user]); 
+    }, [user]);
+
+    async function handleDelete(boardId: string) {
+        if(!user?.uid) return;
+
+        await deleteBoard(user?.uid, boardId);
+        setBoards((prevBoards) => prevBoards.filter((board) => board.id !== boardId)); // update real time on delete
+    }
 
     return(
         <ProtectedRoute>
@@ -32,1305 +41,18 @@ export default function HomePage() {
             {/* Displaying users' boards */}
             <div className="mt-6 grid gap-4">
                 {boards.map(board => (
-                    <Link key={board.id} href={`/users/${user?.uid}/boards/${board.id}`} className="block p-4 border rounded shadow hover:bg-gray-100">
-                        {board.name}
-                    </Link>
-                ))}
-            </div>
-        </div>
-        </ProtectedRoute>
-    );
-}
-<End of file>
-
-
-app/contexts/AuthContext.tsx:
-<Start of file>
-'use client';
-import { createContext, useContext, useEffect, useState } from 'react';
-import { onAuthStateChanged, User } from 'firebase/auth';
-import { auth } from '@/app/utils/firebaseConfig';
-import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
-
-type AuthContextType = {
-    user: User | null;
-    loading: boolean;
-    login: (email: string, password: string) => Promise<void>;
-    logout: () => Promise<void>;
-};
-
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-    const [user, setUser] = useState<User | null>(null);
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        // use onAuthStateChanged to listen to authentication state change
-        const unsubscribe = onAuthStateChanged(auth, (user) => {
-            setUser(user);
-            setLoading(false);
-        });
-        // clean up after unmount
-        // in react unmounting means when the component is no longer being rendered i.e. when the user logs out we no 
-        // longer need to render the header thus it's unmounted
-        return () => unsubscribe();
-    }, []);
-
-    const login = async (email: string, password: string) => {
-        await signInWithEmailAndPassword(auth, email, password);
-    };
-
-    const logout = async () => {
-        await signOut(auth);
-    };
-
-    return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
-        {children}
-    </AuthContext.Provider>
-    );
-}
-
-export function useAuth() {
-    const context = useContext(AuthContext);
-    if(!context) {
-        throw new Error("[DEV Message]: useAuth must be used within an AuthProvider");
-    }
-    return context;
-}
-<End of file>
-
-app/utils/validationSchema.ts:
-<Start of file>
-import * as yup from "yup";
-
-export const registrationSchema = yup.object().shape({
-  email: yup
-    .string()
-    .email("Invalid email format")
-    .required("Email is required")
-    .matches(
-        /^[a-zA-Z0-9._-]+@[a-zA-Z]+\.[a-zA-Z]+$/,
-        "Invalid email format"
-      ),
-  password: yup
-    .string()
-    .min(8, "Password must be at least 8 characters")
-    .required("Password is required")
-    .matches(/[A-Z]/, "Password must contain at least one uppercase letter")
-    .matches(/[a-z]/, "Password must contain at least one lowercase letter")
-    .matches(/[0-9]/, "Password must contain at least one number"),
-  username: yup
-      .string()
-      .min(6, "Username must be at least 6 characters")
-      .required("Username is required"),
-});
-<End of file>
-
-app/utils/firebaseConfig.ts:
-<Start of file>
-// Import the functions you need from the SDKs you need
-import { initializeApp, getApps, getApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider } from 'firebase/auth';
-import { getFirestore } from "firebase/firestore";
-
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
-// all kept in .env
-const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_APP_ID,
-  measurementId: process.env.NEXT_PUBLIC_MEASUREMENT_ID,
-};
-
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const googleProvider = new GoogleAuthProvider();
-const db = getFirestore(app);
-
-export { auth, googleProvider, db };
-<End of file>
-
-app/register/page.tsx:
-<Start of file>
-import Register from '@/components/authentication/Register';
-
-export default function RegisterPage() {
-    return <Register/>;
-}
-<End of file>
-
-app/create-board/page.tsx:
-<Start of file>
-'use client';
-
-
-import { useAuth } from "../contexts/AuthContext";
-import { useRouter } from "next/navigation";
-import { createBoard } from "../actions/boardActions";
-import { getAuth } from 'firebase/auth';
-
-export default function () {
-    // const { user } = useAuth(); // fetch current user authentication
-    const auth = getAuth();
-    const user = auth.currentUser;
-    const router = useRouter();
-
-    async function handleSubmit(formData: FormData) {
-        const boardName = formData.get('name')?.toString() || ''; // makes ts happy because we control such that if it's not a string or it's undefined we make sure it's a string, function definition will prevent it anyways
-        const boardDescription = formData.get('description')?.toString() || '';
-
-        // Ensure user is authenticated
-        if (!user) {
-            throw new Error("User must be authenticated to create a board.");
-        }
-
-        // create board in firestore
-        const { id } = await createBoard(user.uid, boardName, boardDescription);
-        router.push(`users/${user.uid}/boards/${id}`);
-    }
-
-    return (
-        <div>
-            <form action={handleSubmit} className="max-w-xs block">
-                <h1 className="text-2xl mb-3">Create new board</h1>
-                <input type="text" name="name" placeholder="Board name" className="rounded"/>
-                <input type="text" name="description" placeholder="Brief description" className="text-base my-2 rounded"/>
-                {/* <textarea id="w3review" name="w3review" rows={3} className="text-base my-2 rounded" placeholder="Board description"></textarea> */}
-                <button type="submit" className="btn-primary mt-1">Create board</button>
-            </form>
-        </div>
-    );
-}
-<End of file>
-
-app/layout.tsx:
-<Start of file>
-import "./globals.css";
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import { AuthProvider} from '@/app/contexts/AuthContext';
-import Header from "@/components/Header";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
-export const metadata: Metadata = {
-  title: "Create Next App",
-  description: "Generated by create next app",
-};
-
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
-  return (
-    <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        <AuthProvider>
-          <Header/>
-          <main className="m-3 bg-gray-100 rounded">{children}</main>
-        </AuthProvider>
-      </body>
-    </html>
-  );
-}
-<End of file>
-
-app/users/[userId]/boards/[boardId]/page.tsx:
-<Start of file>
-// this is an optional page and this means that we can change the layout of board specific pages
-// I'm not going to implement this right now because I don't think this is the main purpose of the project
-// The use case here can be that while in "work mode" we might use a different layout than the main pages i.e. when we're inside a
-// board we might like to put the header somewhere differently, we might want to add additioanl sections than the ones in the app etc.
-
-
-// IMPORTANT: the dynamic routting has to be set up exactly like the collection in firebase
-import React from 'react';
-import BoardClient from '@/components/boards/BoardClient';
-import ProtectedRoute from '@/components/ProtectedRoute';
-
-type BoardPageProps = {
-    params: Promise<{
-        userId: string;
-        boardId: string; // will be used to specify dynamic board route
-    }>;
-};
-
-export default async function BoardPage({ params }: BoardPageProps) {
-    const {userId, boardId} = await params; // params are asynchronious in nextjs 15
-    
-    return (
-        <ProtectedRoute>
-            <BoardClient userId={userId} boardId={boardId}/>
-        </ProtectedRoute>
-    )
-}
-<End of file>
-
-app/actions/boardActions.ts:
-<Start of file>
-import { db } from '@/app/utils/firebaseConfig';
-import Column from '@/components/Column';
-import { getDocs, updateDoc, addDoc, collection, serverTimestamp, doc, getDoc, Transaction, orderBy } from 'firebase/firestore';
-import { runTransaction } from 'firebase/firestore'; // this is just for testing the transaction function of firestore, and is not that important for this demo
-import { useAuth } from '../contexts/AuthContext';
-
-type CreateBoardResult = {
-    id: string;
-};
-
-type CreateCardResult = {
-    id: string;
-}
-
-export type Board = {
-    id: string;
-    name: string;
-    description: string;
-    createdAt: any;
-    columnCount?: number;
-    cards: Card[];
-}
-
-export type Column = {
-    id: string;
-    name: string;
-    order?: number;
-    createdAt?: any;
-  };
-
-export type Card = {
-    id: string;
-    title: string;
-    description?: string;
-    columnId?: string;
-    order: number;
-    createdAt?: any;
-}
-
-type ColumnInput = Omit<Column, 'id' | 'createdAt'>;
-
-type CardInput = Omit<Card, 'id' | 'createdAt'>;
-// Omit means same as card but without second argument
-
-
-
-export async function createBoard(userId:string, name: string, description: string) : Promise<CreateBoardResult> {
-    // reference of boards subcollection for userId, under users collection
-    const boardsCollection = collection(db, `users/${userId}/boards`);
-
-    try {
-        // add new board document to firestore
-        const docRef = await addDoc(boardsCollection, {
-            name,
-            description,
-            createdAt: serverTimestamp(), // creation timestamp 
-            columnCount: 0,
-        });
-
-        const boardPath = `users/${userId}/boards/${docRef.id}`;
-        const columnsCollection = collection(db, `${boardPath}/columns`);
-        const cardsCollection = collection(db, `${boardPath}/cards`);
-
-        await Promise.all([
-            addDoc(columnsCollection, { placeholder: true }).catch((err) => {
-                console.error("Failed to create columns placeholder:", err);
-            }),
-            addDoc(cardsCollection, { placeholder: true }).catch((err) => {
-                console.error("Failed to create cards placeholder:", err);
-            }),
-        ]);
-
-        console.log("Document written with ID: ", docRef.id);
-
-        return { id: docRef.id }; // return new board ID
-      } catch (err) {
-        console.error("Error adding document: ", err);
-        throw new Error("Failed to create board. Please try again later.");
-      }
-
-}
-
-export async function createColumn(userId: string, boardId: string, columnName: string) : Promise<Column> {
-    // fetch board first, then fetch 
-   const boardRef = doc(db, `users/${userId}/boards/${boardId}`);
-   const columnRef = collection(boardRef, 'columns');
-
-   return runTransaction(db, async (transaction) => {
-    const boardSnap = await transaction.get(boardRef);
-    if(!boardSnap.exists()) {
-        throw new Error("Board doesn't exist.");
-    }
-
-    const boardData = boardSnap.data() as Board;
-    const currentCount = boardData.columnCount ?? 0; // ?? if null turn 0, like in swift
-
-    // create a new reference of the column in firestore and  set its' data
-    const newColumnRef = doc(columnRef);
-    transaction.set(newColumnRef, {
-        name: columnName,
-        order: currentCount,
-        createdAt: serverTimestamp(),
-    });
-
-    transaction.update(boardRef, { columnCount: currentCount + 1});
-
-    return {
-        id: newColumnRef.id,
-        name: columnName,
-        order: currentCount,
-    };
-   });
-}
-
-export async function createCard(userId: string, boardId: string, cardData: CardInput) : Promise<Card> {
-    const cardsCollection = collection(db, `users/${userId}/boards/${boardId}/cards`);
-
-    try {
-        const docRef = await addDoc(cardsCollection, {
-            ...cardData,
-            createdAt: serverTimestamp(),
-        });
-        console.log("Card created with ID: ", docRef.id);
-
-        return { 
-            id: docRef.id,
-            ...cardData 
-        };
-    } catch (err) {
-        console.error("Error adding card: ", err);
-        throw new Error("Failed to create card. Please try again later.");
-    }
-}
-
-export async function fetchBoards(userId: string) : Promise<Board[]> {
-    const boardCollection = collection(db, `users/${userId}/boards`);
-    const snapshot = await getDocs(boardCollection); // snapshot querry result from Firestore that 
-    // contains metadata and data of the collection we're trying to fetch
-
-    return snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(), // spread rest of the document data as defined in Board
-    })) as Board[];
-}
-
-export async function getBoard(userId: string, boardId: string) : Promise<Board> {
-    // document reference so we can fetch it below
-    const docRef = doc(db, `users/${userId}/boards/${boardId}`);
-    const docSnap = await getDoc(docRef);
-
-    if(!docSnap.exists()) {
-        throw new Error("No such board found.");
-    }
-
-    return {
-        id: boardId,
-        ...(docSnap.data() as Omit<Board, 'id'>), // ensure it matches the Board type with Omit
-    }
-}
-
-export async function getColumns(userId: string, boardId: string) : Promise<Column[]> {
-    const columnsRef = collection(db, `users/${userId}/boards/${boardId}/columns`);
-    const snapshot = await getDocs(columnsRef);
-
-    return snapshot.docs
-        .filter((doc) => !doc.data().placeholder) // ensure we don't return placeholders
-        .map((doc) => ({
-            id: doc.id,
-            ...(doc.data() as Omit<Column, 'id'>),
-        }));
-}
-
-export async function updateColumn(
-    userId: string,
-    boardId: string,
-    columnId: string,
-    data: Partial<Column>
-  ) {
-    const ref = doc(db, `users/${userId}/boards/${boardId}/columns/${columnId}`);
-    await updateDoc(ref, data);
-  }
-
-export async function getCards(userId: string, boardId: string) : Promise<Card[]> {
-    const cardsRef = collection(db,`users/${userId}/boards/${boardId}/cards`);
-    const snapshot = await getDocs(cardsRef);
-
-    return snapshot.docs
-        .filter((doc) => !doc.data().placeholder)    
-        .map(doc => ({
-        id: doc.id,
-        ...(doc.data() as Omit<Card, 'id'>),
-    }));
-}
-<End of file>
-
-app/actions/cardActions.ts:
-<Start of file>
-import { db } from "../utils/firebaseConfig";
-import { doc, updateDoc } from 'firebase/firestore';
-
-type UpdateCardData = {
-    columnId?: string;
-    order?: number;
-    title?: string;
-    description?: string;
-}
-
-export async function updateCard(userId: string, boardId: string, cardId: string, data:UpdateCardData) {
-    const cardDocRef = doc(db, `users/${userId}/boards/${boardId}/cards/${cardId}`);
-    await updateDoc(cardDocRef, data);
-}
-<End of file>
-
-app/page.tsx:
-<Start of file>
-'use client';
-
-import LandingPage from "@/components/views/LandingPage";
-import Loading from "@/components/Loading";
-import { useRouter } from "next/navigation";
-import { useEffect } from "react";
-import { useAuth } from '@/app/contexts/AuthContext';
-
-
-
-export default function Home() {
-  const { user, loading } = useAuth();
-  const router = useRouter();
-
-  useEffect(() => {
-    if(!loading && user) {
-      router.push('/home');
-    }
-  }, [user,loading, router]);
-
-  if(loading) return <Loading/>;
-
-  return <LandingPage/>;
-}
-<End of file>
-
-app/globals.css:
-<Start of file>
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-/* :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
-} */
-
-@layer components {
-  .btn-primary {
-    @apply bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-700;
-  }
-
-  .btn-secondary {
-    @apply bg-gray-500 text-white py-2 px-4 rounded hover:bg-gray-700;
-  }
-
-  .card {
-    @apply bg-white shadow-lg rounded p-6;
-  }
-
-  .alert {
-    @apply bg-red-500 text-white font-bold py-3 px-4 rounded;
-  }
-}
-
-.btn-google {
-  @apply flex items-center justify-center space-x-2 rounded px-4 py-2;
-  @apply bg-red-500 text-white hover:bg-red-600;
-}
-<End of file>
-
-app/login/page.tsx:
-<Start of file>
-import Login from '@/components/Login';
-
-export default function LoginPage() {
-    return <Login/>;
-}
-<End of file>
-
-
-components/forms/FormColumn.tsx:
-<Start of file>
-// we explicitly mark a component to be a client component ('use client') as opposed to server component 
-// because we rely on browser(client) specific interactivity e.g. onSubmit.
-'use client';
-
-import { FormEvent } from "react";
-import { Board } from "@/app/actions/boardActions";
-import { createColumn, Column} from "@/app/actions/boardActions";
-
- 
-type FormColumnProps = {
-    userId: string;
-    board: Board;
-    onColumnCreated: (newColumn: Column) => void;
-}
-
-
-export default function FormColumn({ userId, board, onColumnCreated } : FormColumnProps) {
-    async function handleNewColumn(event: FormEvent) {
-        event.preventDefault();
-
-        // Downcasting here since TypeScript treats event.target as EventTarget, so we're specifying it's type directly
-        // So the 'as' keyword basically works in the following way, we're telling the TS compiler that "trust me I know this is of type X"
-        // So we're explicitly telling the TS compiler that this var is of type X, so we can use querySelector without having type safety issues
-        // the EventTarget doesn't have querySelector on the prototype chain so regular JS would just go down the prototype chain until it finds it
-        // but as we know this can cause runtime errors so TS says "nope can't do that until I know it's definetely there"
-        // In short 'as' is used for downcasting or upcasting
-        const input = (event.target as HTMLFormElement).querySelector('input#columnName') as HTMLInputElement || null;
-        const columnName = input?.value.trim();
-
-        if(!columnName) return; // don't create a column if the name is blank upon click
-
-        const newColumnData = await createColumn(userId, board.id, columnName);
-        onColumnCreated(newColumnData);
-
-        if(input) {
-            input.value = "";
-        }
-    }
-
-    return (
-        <form  onSubmit={handleNewColumn} className="w-80 p-4 border-gray-300 rounded-md shadow bg-white">
-            <div className="grid gap-2">
-                <label htmlFor="columnName">
-                    <span className="text-gray-600">Column Name:</span>
-                </label>
-
-                <input type="text" id="columnName" placeholder="Column Name" className="rounded border border-gray-300 p-2 w-full"/>
-                <button type="submit" className="btn-primary w-full">Create Column</button>
-            </div>
-        </form>  
-    );
-}
-<End of file>
-
-components/ProtectedRoute.tsx:
-<Start of file>
-'use client';
-import { useAuth } from '@/app/contexts/AuthContext';
-import { useRouter } from "next/navigation";
-import { useEffect } from 'react';
-
-export default function ProtectedRoute({ children }: { children: React.ReactNode }) {
-    const { user, loading } = useAuth();
-    const router = useRouter();
-
-    useEffect(() => {
-        if(!loading && !user) {
-            router.push("/");
-        }
-    }, [user, loading, router]);
-
-    if (loading || !user) return <p>Loading...</p>;
-
-    return <>{children}</>;
-}
-<End of file>
-
-components/Login.tsx:
-<Start of file>
-'use client';
-import { useState } from 'react';
-import { useAuth } from '@/app/contexts/AuthContext';
-import { useRouter } from 'next/navigation';
-import GoogleLoginButton from './authentication/GoogleLoginButton';
-
-export default function Login() {
-    const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
-    const [error, setError] = useState<string | null>(null);
-    const { login } = useAuth();
-    const router = useRouter();
-
-    async function handleLogin(event: React.FormEvent) {
-        event.preventDefault();
-        setError(null);
-
-        try{
-            await login(email, password); // this is called from the AuthContext within the context of this component passed as AuthContext
-            router.push("/home");
-        } catch (err: any) {
-            switch (err.code) {
-                case "auth/user-not-found":
-                  setError("No account found with this email. Please register or try a different email.");
-                  break;
-                case "auth/invalid-credential":
-                  setError("Incorrect password. Please try again.");
-                  break;
-                case "auth/invalid-email":
-                  setError("The email address is not valid. Please check and try again.");
-                  break;
-                case "auth/too-many-requests":
-                  setError("Too many login attempts. Please try again later.");
-                  break;
-                default:
-                  setError("An unexpected error occurred. Please try again later.");
-                  console.log(err.code);
-                  break;
-              }
-        }
-    }
-
-    return (
-        <div className="w-80 p-6 mx-auto mt-10 bg-white rounded shadow">
-        <h1 className="text-xl font-bold mb-4">Login</h1>
-        {error && <p className="text-red-500 mb-4">{error}</p>}
-        <form onSubmit={handleLogin}>
-          <div className="grid gap-2">
-            <input
-              type="email"
-              placeholder="Email"
-              className="rounded border p-2 w-full"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-            <input
-              type="password"
-              placeholder="Password"
-              className="rounded border p-2 w-full"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-            <button type="submit" className="btn-primary w-full">
-              Login
-            </button>
-          </div>
-        </form>
-        <div className="my-1 text-center text-gray-400"><small>or</small></div>
-            <GoogleLoginButton>Login with Google</GoogleLoginButton>
-      </div>
-    );
-}
-<End of file>
-
-components/Board.tsx:
-<Start of file>
-'use client';
-import { ReactSortable } from 'react-sortablejs';
-import Column from './Column';
-import FormColumn from "./forms/FormColumn";
-import { Board as BoardType, Card, Column as ColumnType } from '@/app/actions/boardActions';
-import { useState } from 'react';
-import { updateColumn } from '@/app/actions/boardActions';
-
-type BoardProps = {
-    userId: string;
-    boardId: string;
-    board: BoardType;
-    columns: ColumnType[];
-    cards: Card[];
-}
-
-export default function Board({ userId, boardId, board, columns, cards } : BoardProps) {
-    const [boardColumns, setBoardColumns] = useState<ColumnType[]>(columns);
-    const [boardCards, setBoardCards] = useState<Card[]>(cards);
-
-    return (
-        <div className="flex gap-4">
-            <ReactSortable
-            list={columns}
-            setList={(sorted) => {
-                setBoardColumns(sorted);
-
-                sorted.forEach((col, index) => {
-                    updateColumn(userId, boardId, col.id, {order: index});
-                })
-            }}
-            group="columns"
-            className='flex gap-4'>
-                {boardColumns.map((column) => (
-                <Column 
-                    key={column.id}
-                    userId={userId} 
-                    boardId={boardId} 
-                    column={column}
-                    cards={boardCards.filter((card) => card.columnId === column.id)}
-                    setCards={setBoardCards} // this allows each Column comp to update the parent state array
-                />
-                ))}
-            </ReactSortable>
-
-            <FormColumn userId={userId} board={board} onColumnCreated={(newCol) => {
-                setBoardColumns([...boardColumns, newCol]);
-            }} />
-        </div>
-    );
-}
-<End of file>
-
-components/boards/BoardClient.tsx:
-<Start of file>
-// this is the client part of the dynamic boardId page which is supposed to render on client
-'use client';
-
-// Object imports
-import { useEffect, useState } from 'react';
-import { getBoard, Board as BoardType} from '@/app/actions/boardActions';
-import { getColumns, Column } from '@/app/actions/boardActions';
-import { getCards, Card } from '@/app/actions/boardActions';
-
-// Component imports
-import Loading from '@/components/Loading';
-import Board from '../Board';
-import FormColumn from '../forms/FormColumn';
-import { useAuth } from '@/app/contexts/AuthContext';
-
-type BoardClientProps = {
-    userId: string,
-    boardId: string,
-};
-
-export default function BoardClient({ userId, boardId } : BoardClientProps) {
-    const [board, setBoard] = useState<BoardType | null>(null);
-    const [columns, setColumns] = useState<Column[]>([]);
-    const [cards, setCards] = useState<Card[]>([]);
-    const [loading, setLoading] = useState<boolean>(true);
-    const [error, setError] = useState<string | null>(null);
-
-    const { user } = useAuth();
-    useEffect(() => {
-        async function fetchData() {
-            setLoading(true);
-
-            if(!user) return; // make sure user is authenticated
-
-            try {
-              
-
-                const boardData = await getBoard(user?.uid, boardId);
-                console.log("Step 1 done.")
-                const columnData = await getColumns(user?.uid, boardId);
-                console.log("Step 2 done.");
-                const cardsData = await getCards(user?.uid, boardId);
-                console.log("Step 3 done.");
-
-                setBoard(boardData);
-                setColumns(columnData);
-                setCards(cardsData);
-            } catch (err) {
-                console.error("Failed to fetch data for board: ", err);
-                setError("Failed to fetch data for board in BoardClient.");
-            } finally {
-                setLoading(false);
-            }
-        }
-
-        fetchData();
-    }, [user, boardId]);
-
-    if(loading) return <Loading/>;
-    if(error) return <p>{error}</p>;
-    if(!board) return <p>Board not found</p>;
-
-    return (
-        <div>
-      {/* The board info at the top */}
-      <h1 className="text-4xl mb-4">{board.name}</h1>
-      <p className="text-gray-600">{board.description}</p>
-      <hr />
-      <p className="text-sm text-gray-500">
-        Created on:{" "}
-        {new Date(board.createdAt.seconds * 1000).toLocaleDateString()}
-      </p>
-
-      <section>
-        {columns.length === 0 ? (
-          <div>
-            <p>This board has no columns. Create one to get started:</p>
-            <FormColumn
-              userId={userId}
-              board={board}
-              onColumnCreated={(newColumn : Column) => {
-                setColumns([...columns, newColumn]);
-              }}
-            />
-          </div>
-        ) : (
-          <Board
-            board={board}
-            userId={userId}
-            boardId={boardId}
-            columns={columns}
-            cards={cards}
-          />
-        )}
-      </section>
-      </div>
-    );
-
-}
-<End of file>
-
-components/Header.tsx:
-<Start of file>
-'use client';
-import Link from 'next/link';
-import LogoutButton from './authentication/LogoutButton';
-import { getAuth } from 'firebase/auth';
-import { useAuth } from '@/app/contexts/AuthContext';
-
-export default function Header() {
-    const auth = getAuth();
-    const { loading }  = useAuth();
-    const user = auth.currentUser;
-
-    if(loading || !auth) return null;
-
-        return (
-            <>
-            {user && (<header className="m-3 bg-gray-500 rounded p-4 flex justify-between items-center text-white">
-                <h1 className="text-2xl font-bold">
-                  <Link href="/home" className="logo hover:underline">
-                    Trello Clone
-                  </Link>
-                </h1>
-                <div className="flex space-x-4 items-center">
-                  {/* Display Name */}
-                  {user?.displayName && <span className='font-medium mx-2'>Hi, {user?.displayName}</span>}
-                  <LogoutButton/>
-                </div>
-            </header>)}
-            </>
-        );
-}
-<End of file>
-
-components/Loading.tsx:
-<Start of file>
-export default function Loading() {
-    return (
-        <p>Loading...</p>
-    );
-}
-<End of file>
-
-components/views/LandingPage.tsx:
-<Start of file>
-'use client'
-import Link from 'next/link';
-
-export default function LandingPage() {
-    return (
-        <div className="min-h-screen bg-gray-100 flex flex-col justify-center items-center">
-            <div className="text-center">
-                <h1 className="text-6xl font-bold mb-6 text-gray-800">Trello Clone</h1>
-                <h2 className="text-2xl font-medium mb-10 text-gray-600">For MVP Masters Projects</h2>
-                <div className="flex space-x-6 justify-center mb-8">
-                    <Link href="/login">
-                        <button className="btn-primary text-lg px-8 py-4">Login</button>
-                    </Link>
-                    <Link href="/register">
-                        <button className="btn-secondary text-lg px-8 py-4">Register</button>
-                    </Link>
-                </div>
-                <div className="flex flex-col space-y-2">
-                    <a href="https://github.com/" target="_blank" rel="noopener noreferrer" className="text-blue-500 underline">
-                        GitHub Repository
-                    </a>
-                    <a href="https://www.linkedin.com/" target="_blank" rel="noopener noreferrer" className="text-blue-500 underline">
-                        LinkedIn Profile
-                    </a>
-                </div>
-            </div>
-        </div>
-    );
-}
-<End of file>
-
-components/authentication/LogoutButton.tsx:
-<Start of file>
-import { useAuth } from '@/app/contexts/AuthContext';
-import { useRouter } from 'next/navigation';
-
-export default function LogoutButton() {
-    const { logout } = useAuth();
-    const router = useRouter();
-
-    const handleLogout = async () => {
-        await logout();
-        router.push('/');
-    }
-
-    return (
-        <button
-            onClick={handleLogout}
-            className="text-white bg-red-500 px-4 py-2 rounded hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2"
-        >
-            Log Out
-        </button>
-        // <Link href={'/'} onClick={logout} className='text-white bg-red-500 px-4 py-2 rounded hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2'>
-        //     Logout
-        // </Link>
-    );
-}
-<End of file>
-
-components/authentication/Register.tsx:
-<Start of file>
-'use client';
-import { useState } from 'react';
-import { createUserWithEmailAndPassword, updateProfile, getAuth } from 'firebase/auth';
-import { auth } from '@/app/utils/firebaseConfig';
-import { useRouter } from 'next/navigation';
-import { useForm } from "react-hook-form";
-import { yupResolver } from "@hookform/resolvers/yup";
-import * as yup from "yup";
-import { registrationSchema } from '@/app/utils/validationSchema';
-import GoogleLoginButton from './GoogleLoginButton';
-
-type FormData = {
-    email: string;
-    password: string;
-    username: string;
-};
-
-
-export default function Register() {
-    const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
-    const [error, setError] = useState<string | null>(null);
-    const [success, setSuccess] = useState(false);
-    const router = useRouter();
-
-    // Hook into react-hook-form and use yup schema validation
-    const {
-        register,
-        handleSubmit,
-        formState: { errors },
-    } = useForm<FormData>({
-        resolver: yupResolver(registrationSchema),
-    });
-
-    async function handleRegister(data: FormData) {
-        console.log("Form data submitted:", data);
-        setError(null);
-        setSuccess(false);
-
-        try {
-            const userCredidential = await createUserWithEmailAndPassword(auth, data.email, data.password);
-            const user = userCredidential.user;
-
-            setSuccess(true);
-            await updateProfile(user, { displayName: data.username });
-
-            const currAuth = getAuth();
-            const currentUserInfo = currAuth.currentUser;
-            console.log(currentUserInfo);
-            router.push("/login");
-        } catch (err: any) {
-            switch (err.code) {
-                case "auth/email-already-in-use":
-                    setError("The email address is already registered. Please use a different email or log in.");
-                    break;
-                case "auth/weak-password":
-                    setError("The password is too weak. Please use a stronger password.");
-                    break;
-                default:
-                    setError("An unexpected error occurred. Please try again later.");
-                    break;
-            }
-        }
-    }
-
-    return (
-        <div className="w-80 p-6 mx-auto mt-10 bg-white rounded shadow">
-        <h1 className="text-xl font-bold mb-4">Register</h1>
-        {error && <p className="text-red-500 mb-4">{error}</p>}
-        {success && (
-            <p className="text-green-500 mb-4">
-                Registration successful! You can log in now.
-            </p>
-            )}
-        <form onSubmit={handleSubmit(handleRegister)}>
-          <div className="grid gap-2">
-            {/* Username Input */}
-            <input 
-                type='text' 
-                placeholder='Username' 
-                className={`rounded border p-2 w-full ${errors.username ? "border-red-500" : "border-gray-300"}`}
-                {...register("username")}
-            />
-            {errors.username && (<p className='text-red-500 text-sm'>{errors.username.message}</p>)} 
-            {/* Email Input */}
-            <input
-              type="email"
-              placeholder="Email"
-              className={`rounded border p-2 w-full ${errors.email ? "border-red-500" : "border-gray-300"}`}
-              {...register("email")}
-            />
-            {errors.email && (
-                <p className='text-red-500 text-sm'>{errors.email.message}</p>
-            )}
-            {/* Password Input */}
-            <input
-              type="password"
-              placeholder="Password"
-              className={`rounded border p-2 w-full ${errors.password ? "border-red-500" : "border-gray-300"}`}
-              {...register("password")}
-            />
-            {errors.password && (
-                <p className='text-red-500 text-sm'>{errors.password.message}</p>
-            )}
-            {/* Submit Button */}
-            <button type="submit" className="btn-primary w-full">
-              Register
-            </button>
-          </div>
-        </form>
-        <div className="my-1 text-center text-gray-400"><small>or</small></div>
-            <GoogleLoginButton>Register with Google</GoogleLoginButton>
-      </div>
-    );
-}
-<End of file>
-
-components/authentication/GoogleLoginButton.tsx:
-<Start of file>
-'use client'
-import { signInWithPopup, updateProfile } from 'firebase/auth';
-import { auth, googleProvider } from '@/app/utils/firebaseConfig';
-import { useRouter } from 'next/navigation';
-
-export default function GoogleLoginButton({ children }:any){
-    const router = useRouter();
-
-    async function handleGoogleLoign() {
-        try {
-            const userCredential = await signInWithPopup(auth, googleProvider);
-            const user =userCredential.user;
-
-            // if user doesn't have a display name, derive one from email
-            if (!user.displayName && user.email) {
-                const username = user.email.split('@')[0];
-                await updateProfile(user, { displayName: username });
-            }
-            
-            router.push('/home');
-        } catch (error) {
-            console.error('Google login failed: ', error);
-        }
-    }
-
-    return (
-        <button onClick={handleGoogleLoign} type='button' className="btn-google w-full text-white bg-red-500 py-2 rounded">
-            {children}
-        </button>
-    );
-}
-<End of file>
-
-components/Column.tsx:
-<Start of file>
-'use client';
-
-import { ReactSortable } from "react-sortablejs";
-import { Dispatch, SetStateAction } from "react";
-import { useState } from 'react';
-import { Card } from "@/app/actions/boardActions";
-import { createCard } from "@/app/actions/boardActions";
-import { Column as ColumnType } from "@/app/actions/boardActions";
-import { updateCard } from "@/app/actions/cardActions";
-
-// this is called type alias and is used to define the shape or the data types of the props in the component
-// you can use an interface here as well, but using type alias is not only common practice but also offers more flexibility because of
-// the ability to define complex types like union or intersection and also serve a specific puspose
-// interfaces can be inherited while types cannot 
-type ColumnProps = {
-    userId: string;
-    boardId: string;
-    column: ColumnType;
-    cards: Card[];
-    setCards: Dispatch<SetStateAction<Card[]>>;
-}
-
-export default function Column({ userId, boardId, column, cards, setCards }: ColumnProps) {
-    const [isAddingCard, setIsAddingCard] = useState<boolean>(false);
-    const [newCardTitle, setNewCardTitle] = useState<string>('');
-
-    function handleAddCard() {
-        setIsAddingCard(true);
-    }
-
-    async function handleCreateCard() {
-        if(!newCardTitle.trim()) {
-            setIsAddingCard(false);
-            return; // ignore empty cards
-        }
-
-        const newCardData = await createCard(userId, boardId, {
-            title: newCardTitle,
-            columnId: column.id,
-            order: cards.length,
-        });
-
-        setCards((prevState) => [...prevState, newCardData]);
-
-        // cleanup
-        setNewCardTitle("");
-        setIsAddingCard(false);
-    }
-
-    /**
-   * Called whenever ReactSortable re-sorts or moves cards into this column.
-   * @param sortedCards - The new array of cards in this column after sorting
-   * @param newColumnId - The ID of the column that owns these cards
-   */
-    function setCardsForColumn(sortedCards: Card[], newColumnId: string) {
-        setCards((prevCards: Card[]) => {
-            const updated = [...prevCards]; // destruct with spread and give us the prev state
-            
-            sortedCards.forEach((sortedCard: Card, newOrder: number) => {
-                const foundCard = updated.find((card) => card.id === sortedCard.id)
-                if(foundCard) {
-                    foundCard.columnId = newColumnId;
-                    foundCard.order = newOrder; // update the new position
-                }
-            });
-            
-            updated.sort((a,b) => {
-                if(a.columnId === b.columnId) {
-                    return a.order - b.order;
-                }
-                return 0;
-            });
-            // return the new processed cards, sorted by order so the reordering works, as the new state of the cards
-            // which is being called when anythin in the ReactSortable changes, specifically on the list of cards 
-
-            return updated;
-        });
-
-        sortedCards.forEach(async (sortedCard, newOrder) => {
-            await updateCard(userId, boardId, sortedCard.id, {
-              columnId: newColumnId,
-              order: newOrder,
-            });
-        });
-    }
-
-
-        return (
-            <div className="w-60 shadow-md bg-white rounded-md p-4">
-                <h3 className="font-semibold">{column.name}</h3>
-
-                {/* Sortable area for existing cards */}
-                <ReactSortable
-                list={cards}
-                setList={(updated) => setCardsForColumn(updated, column.id)}
-                group="cards" // ensures cross-column drag is allowed
-                className="min-h-32 p-1 flex flex-col space-y-1"
-                ghostClass="opacity-30"
-                >
-                    {cards.map((card) => (
-                    <div key={card.id} className="border bg-white my-2 p-4 rounded-md">
-                    <span>{card.title}</span>
+                    <div key={board.id} className="flex items-center">
+                        <div className="flex p-4 border rounded shadow hover:bg-gray-10">
+                        <Link key={board.id} href={`/users/${user?.uid}/boards/${board.id}`}>
+                            {board.name}
+                        </Link>
+                        <Options boardId={board.id} onDelete={() =>handleDelete(board.id)} onEdit={async () => {
+                    console.log("Editing board...");
+                    // Add edit logic here, change 
+                        }}/>
+                        </div>
+                        
                     </div>
-                    ))}
-                </ReactSortable>
-
-                {/* Add Card Button / Input */}
-                {isAddingCard ? (
-                <div className="mt-2">
-                <input
-                className="border p-1 w-full rounded"
-                autoFocus
-                value={newCardTitle}
-                onChange={(e) => setNewCardTitle(e.target.value)}
-                onBlur={handleCreateCard}
-                onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                handleCreateCard();
-                }
-                }}
-                />
-                </div>
-                ) : (
-                <button className="btn-secondary mt-2" onClick={handleAddCard}>
-                + Add Card
-                </button>
-                )}
-            </div>
-     );
-}
-<End of file>
-
-output.txt:
-<Start of file>
-app/home/page.tsx:
-<Start of file>
-'use client';
-
-import ProtectedRoute from "@/components/ProtectedRoute"
-import Link from "next/link";
-import { useAuth } from "../contexts/AuthContext";
-import { useEffect, useState } from "react";
-import { fetchBoards } from "../actions/boardActions";
-
-
-export default function HomePage() {
-    const { user } = useAuth();
-    const [boards, setBoards] = useState<any[]>([]);
-
-    useEffect(() => {
-        if (user) {
-            fetchBoards(user.uid).then(setBoards); // fetch boards for the logged in user then set the state to be those boards
-        }
-    }, [user]); 
-
-    return(
-        <ProtectedRoute>
-        <div>
-            <h1 className="text-4xl mb-4">My Boards</h1>
-            <hr />
-
-            <Link className="btn-primary inline-block" href={'/create-board'}>
-                Create new Board &rarr;
-            </Link>
-
-            {/* Displaying users' boards */}
-            <div className="mt-6 grid gap-4">
-                {boards.map(board => (
-                    <Link key={board.id} href={`/users/${user?.uid}/boards/${board.id}`} className="block p-4 border rounded shadow hover:bg-gray-100">
-                        {board.name}
-                    </Link>
                 ))}
             </div>
         </div>
@@ -1338,7 +60,6 @@ export default function HomePage() {
     );
 }
 <End of file>
-
 
 app/contexts/AuthContext.tsx:
 <Start of file>
@@ -1350,6 +71,7 @@ import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
 
 type AuthContextType = {
     user: User | null;
+    userId: string | null;
     loading: boolean;
     login: (email: string, password: string) => Promise<void>;
     logout: () => Promise<void>;
@@ -1382,7 +104,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, userId: user?.uid || null, loading, login, logout }}>
         {children}
     </AuthContext.Provider>
     );
@@ -1580,14 +302,45 @@ export default async function BoardPage({ params }: BoardPageProps) {
 }
 <End of file>
 
+app/actions/columnActions.ts:
+<Start of file>
+import { db } from "../utils/firebaseConfig";
+import { deleteDoc, doc, updateDoc } from 'firebase/firestore';
+
+export type Column = {
+    id: string;
+    name: string;
+    order?: number;
+    createdAt?: any;
+};
+
+
+  // this function is not implemented properly, it would be better if the delete column deletes all cards associated with the column
+  // since where I use this function I already have the list of cards, there is no reason why I should do this here
+export async function deleteColumn(userId: string, boardId: string, columnId: string){
+    const ref = doc(db, `users/${userId}/boards/${boardId}/columns/${columnId}`);
+    await deleteDoc(ref);
+}
+
+export async function updateColumn(
+    userId: string,
+    boardId: string,
+    columnId: string,
+    data: Partial<Column>
+  ) {
+    const ref = doc(db, `users/${userId}/boards/${boardId}/columns/${columnId}`);
+    await updateDoc(ref, data);
+  }
+<End of file>
+
 app/actions/boardActions.ts:
 <Start of file>
 import { db } from '@/app/utils/firebaseConfig';
 import Column from '@/components/Column';
-import { getDocs, updateDoc, addDoc, collection, serverTimestamp, doc, getDoc, Transaction, orderBy } from 'firebase/firestore';
+import { query, getDocs, updateDoc, addDoc, collection, serverTimestamp, doc, getDoc, Transaction, orderBy, deleteDoc } from 'firebase/firestore';
 import { runTransaction } from 'firebase/firestore'; // this is just for testing the transaction function of firestore, and is not that important for this demo
 import { useAuth } from '../contexts/AuthContext';
-
+import { Column as ColumnType } from "./columnActions";
 type CreateBoardResult = {
     id: string;
 };
@@ -1605,12 +358,7 @@ export type Board = {
     cards: Card[];
 }
 
-export type Column = {
-    id: string;
-    name: string;
-    order?: number;
-    createdAt?: any;
-  };
+
 
 export type Card = {
     id: string;
@@ -1621,7 +369,7 @@ export type Card = {
     createdAt?: any;
 }
 
-type ColumnInput = Omit<Column, 'id' | 'createdAt'>;
+type ColumnInput = Omit<ColumnType, 'id' | 'createdAt'>;
 
 type CardInput = Omit<Card, 'id' | 'createdAt'>;
 // Omit means same as card but without second argument
@@ -1664,7 +412,33 @@ export async function createBoard(userId:string, name: string, description: stri
 
 }
 
-export async function createColumn(userId: string, boardId: string, columnName: string) : Promise<Column> {
+// firestore doesn't cascade subcollection on delete, as they are all treated as seperate entities
+// there are 3 options here: 1. delete each subcollection manually; 2. use a firebase extension; 
+// 3. write a firebase server function (which will recursevilly delete all subcollections and documents etc) -> this is just writting the extension ourselves
+// because I'm having some trouble installing the extension for some reason, I have decided to take the 1st approach
+export async function deleteBoard(userId: string, boardId: string) {
+    const boardPath = `users/${userId}/boards/${boardId}`;
+
+    const boardRef = doc(db, boardPath);
+    const columnsRef = collection(boardRef, 'columns');
+    const cardsRef = collection(boardRef, 'cards');
+    
+    const columnsSnapshot = await getDocs(columnsRef);
+    const cardsSnapshot = await getDocs(cardsRef);
+
+    for(const column of columnsSnapshot.docs){
+        await deleteDoc(column.ref);
+    }
+
+    for(const cards of cardsSnapshot.docs){
+        await deleteDoc(cards.ref); // ref is the reference to that doc within the subcollection
+    }
+
+     // placing here because it will have no subcollections
+    await deleteDoc(boardRef); 
+}
+
+export async function createColumn(userId: string, boardId: string, columnName: string) : Promise<ColumnType> {
     // fetch board first, then fetch 
    const boardRef = doc(db, `users/${userId}/boards/${boardId}`);
    const columnRef = collection(boardRef, 'columns');
@@ -1742,27 +516,18 @@ export async function getBoard(userId: string, boardId: string) : Promise<Board>
     }
 }
 
-export async function getColumns(userId: string, boardId: string) : Promise<Column[]> {
+export async function getColumns(userId: string, boardId: string) : Promise<ColumnType[]> {
     const columnsRef = collection(db, `users/${userId}/boards/${boardId}/columns`);
-    const snapshot = await getDocs(columnsRef);
+    const columnsQuery = query(columnsRef, orderBy("order"));
+    const snapshot = await getDocs(columnsQuery);
 
     return snapshot.docs
         .filter((doc) => !doc.data().placeholder) // ensure we don't return placeholders
         .map((doc) => ({
             id: doc.id,
-            ...(doc.data() as Omit<Column, 'id'>),
+            ...(doc.data() as Omit<ColumnType, 'id'>),
         }));
 }
-
-export async function updateColumn(
-    userId: string,
-    boardId: string,
-    columnId: string,
-    data: Partial<Column>
-  ) {
-    const ref = doc(db, `users/${userId}/boards/${boardId}/columns/${columnId}`);
-    await updateDoc(ref, data);
-  }
 
 export async function getCards(userId: string, boardId: string) : Promise<Card[]> {
     const cardsRef = collection(db,`users/${userId}/boards/${boardId}/cards`);
@@ -1780,7 +545,7 @@ export async function getCards(userId: string, boardId: string) : Promise<Card[]
 app/actions/cardActions.ts:
 <Start of file>
 import { db } from "../utils/firebaseConfig";
-import { doc, updateDoc } from 'firebase/firestore';
+import { deleteDoc, doc, updateDoc } from 'firebase/firestore';
 
 type UpdateCardData = {
     columnId?: string;
@@ -1790,8 +555,17 @@ type UpdateCardData = {
 }
 
 export async function updateCard(userId: string, boardId: string, cardId: string, data:UpdateCardData) {
+    if (userId === "") return;
+    
     const cardDocRef = doc(db, `users/${userId}/boards/${boardId}/cards/${cardId}`);
     await updateDoc(cardDocRef, data);
+}
+
+export async function deleteCard(userId: string, boardId: string, cardId:string) {
+    if (userId === "") return;
+
+    const cardDocRef = doc(db, `users/${userId}/boards/${boardId}/cards/${cardId}`);
+    await deleteDoc(cardDocRef);
 }
 <End of file>
 
@@ -1847,6 +621,7 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 } */
 
+
 @layer components {
   .btn-primary {
     @apply bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-700;
@@ -1856,6 +631,10 @@ body {
     @apply bg-gray-500 text-white py-2 px-4 rounded hover:bg-gray-700;
   }
 
+  .btn-boards {
+    @apply bg-indigo-500 text-white py-2 px-4 rounded hover:bg-indigo-700;
+  }
+
   .card {
     @apply bg-white shadow-lg rounded p-6;
   }
@@ -1863,11 +642,16 @@ body {
   .alert {
     @apply bg-red-500 text-white font-bold py-3 px-4 rounded;
   }
+
 }
 
 .btn-google {
   @apply flex items-center justify-center space-x-2 rounded px-4 py-2;
   @apply bg-red-500 text-white hover:bg-red-600;
+}
+
+.center {
+  text-align: center;
 }
 <End of file>
 
@@ -1899,6 +683,10 @@ OUTPUT_FILE="$2"
 # Then read each file path line by line.
 while IFS= read -r FILE; do
   
+  if [[ "$FILE" == *.ico ]]; then
+    echo "Skipping file with .ico extension"
+    continue
+  fi
   # Make sure it is indeed a file, not something else
   if [[ -f "$FILE" ]]; then
     # Derive the relative path by removing the leading "$FOLDER/"
@@ -1921,58 +709,234 @@ while IFS= read -r FILE; do
 done < <(find "$FOLDER" -type f)
 <End of file>
 
+components/options/Options.tsx:
+<Start of file>
+"use client";
+import { useAuth } from '@/app/contexts/AuthContext';
+import { useState } from 'react';
+
+
+type OptionProps = {
+    boardId?: string;
+    onEdit?: () => Promise<void>;
+    onDelete: () => Promise<void>;
+    specialAction?: () => Promise<any>;
+}
+
+export default function Options({ onEdit, onDelete, specialAction } : OptionProps) {
+    const [isOpen, setIsOpen] = useState(false);
+
+    function toggleMenu() {
+        setIsOpen((prev) => !prev); // cool way to avoid checking the state first, give me the opposite state of whatever it is
+    };
+
+    async function handleEdit() {
+        if(onEdit){
+            await onEdit();
+            setIsOpen(false);
+        }
+    };
+
+    async function handleDelete() {
+        await onDelete();
+        setIsOpen(false);
+
+    };
+
+    async function handleSpecialAction() {
+        if(specialAction){
+            await specialAction();
+            setIsOpen(false);
+        }
+    };
+
+    return (
+        <div className='relative inline-block'>
+            <button onClick={toggleMenu}
+                onBlur={toggleMenu} 
+                className='flex items-center justify-center w-6 h-6 text-gray-500 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-0 rounded box-border'
+                aria-haspopup='true'
+                aria-expanded={isOpen}
+                aria-label='Options'>
+                <span className='flex items-center justify-center h-full text-xl leading-none align-middle pb-3'>...</span>
+            </button>
+
+            {/* toggled menu */}
+            {isOpen && (
+                <div className='flex flex-col absolute left-0 mt-1 bg-white border rounded shadow-lg z-10'>
+                    <button onClick={handleEdit} className="block w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100">
+                        Edit
+                    </button>
+                    <button onClick={handleDelete} className="flex w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-100">
+                        Delete
+                    </button>
+                    {specialAction && (
+                        <button onClick={handleSpecialAction} className="flex w-full px-4 py-2 text-left text-sm text-blue-600 hover:bg-blue-100 whitespace-nowrap">
+                        Clear Cards
+                    </button>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+}
+<End of file>
+
+components/Card.tsx:
+<Start of file>
+import { Card as CardType} from "@/app/actions/boardActions";
+import Options from "./options/Options";
+
+type CardProps = {
+    card: CardType;
+    boardId: string;
+    onDelete: (cardId: string) => Promise<void>;
+}
+
+export default function Card({ boardId, card, onDelete } : CardProps) {
+
+    async function handleDelete(){
+        if (typeof onDelete !== 'function') {
+            console.error("onDelete prop is not a function:", onDelete);
+            return;
+        }
+        await onDelete(card.id);
+    }
+
+    async function handleEdit(){
+        // TO-DO: Implement redirecting to open the card menu
+    }
+
+    return (
+        <div className="flex items-center justify-between border bg-white my-2 p-3 rounded-md">
+            <span className="flex-auto">{card.title}</span>
+            <Options boardId={boardId} onEdit={() => handleEdit()} onDelete={handleDelete}/>
+        </div>
+    );
+}
+<End of file>
+
 components/forms/FormColumn.tsx:
 <Start of file>
 // we explicitly mark a component to be a client component ('use client') as opposed to server component 
 // because we rely on browser(client) specific interactivity e.g. onSubmit.
 'use client';
-
-import { FormEvent } from "react";
-import { Board } from "@/app/actions/boardActions";
-import { createColumn, Column} from "@/app/actions/boardActions";
+import { FormEvent, useEffect, useRef } from "react";
+import { createColumn} from "@/app/actions/boardActions";
+import { useAuth } from "@/app/contexts/AuthContext";
+import { Column } from '@/app/actions/columnActions';
+import { useState } from "react";
 
  
 type FormColumnProps = {
-    userId: string;
-    board: Board;
+    boardId: string;
     onColumnCreated: (newColumn: Column) => void;
 }
 
 
-export default function FormColumn({ userId, board, onColumnCreated } : FormColumnProps) {
-    async function handleNewColumn(event: FormEvent) {
+export default function FormColumn({ boardId, onColumnCreated } : FormColumnProps) {
+    const [isAdding, setIsAdding] = useState(false);
+    const [columnName, setColumnName] = useState<string>("");
+    const { userId } = useAuth();
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        if(isAdding && inputRef.current) {
+            inputRef.current.focus();
+        }
+    }, [isAdding]);
+
+    // async function handleNewColumn(event: FormEvent) {
+    //     event.preventDefault();
+
+    //     // Downcasting here since TypeScript treats event.target as EventTarget, so we're specifying it's type directly
+    //     // So the 'as' keyword basically works in the following way, we're telling the TS compiler that "trust me I know this is of type X"
+    //     // So we're explicitly telling the TS compiler that this var is of type X, so we can use querySelector without having type safety issues
+    //     // the EventTarget doesn't have querySelector on the prototype chain so regular JS would just go down the prototype chain until it finds it
+    //     // but as we know this can cause runtime errors so TS says "nope can't do that until I know it's definetely there"
+    //     // In short 'as' is used for downcasting or upcasting
+    //     const input = (event.target as HTMLFormElement).querySelector('input#columnName') as HTMLInputElement || null;
+    //     const columnName = input?.value.trim();
+
+    //     if(!columnName || !userId) return; // don't create a column if the name is blank upon click or if user is not logged in
+
+    //     const newColumnData = await createColumn(userId, boardId, columnName);
+    //     onColumnCreated(newColumnData);
+
+    //     if(input) {
+    //         input.value = "";
+    //     }
+    // }
+
+    async function handleNewColumn(event: FormEvent){
         event.preventDefault();
 
-        // Downcasting here since TypeScript treats event.target as EventTarget, so we're specifying it's type directly
-        // So the 'as' keyword basically works in the following way, we're telling the TS compiler that "trust me I know this is of type X"
-        // So we're explicitly telling the TS compiler that this var is of type X, so we can use querySelector without having type safety issues
-        // the EventTarget doesn't have querySelector on the prototype chain so regular JS would just go down the prototype chain until it finds it
-        // but as we know this can cause runtime errors so TS says "nope can't do that until I know it's definetely there"
-        // In short 'as' is used for downcasting or upcasting
-        const input = (event.target as HTMLFormElement).querySelector('input#columnName') as HTMLInputElement || null;
-        const columnName = input?.value.trim();
+        const trimmerName = columnName.trim();
 
-        if(!columnName) return; // don't create a column if the name is blank upon click
+        if(!trimmerName || !userId) {
+            setIsAdding(false);
+            return;
+        }
 
-        const newColumnData = await createColumn(userId, board.id, columnName);
-        onColumnCreated(newColumnData);
-
-        if(input) {
-            input.value = "";
+        try {
+            const newColumnData = await createColumn(userId, boardId, trimmerName);
+            onColumnCreated(newColumnData);
+            setColumnName("");
+            setIsAdding(false);
+        } catch (error) {
+            console.error("Error creating column:", error);
+            alert("Failed to create column. Please try again.");
+            setIsAdding(false);
         }
     }
 
-    return (
-        <form  onSubmit={handleNewColumn} className="w-80 p-4 border-gray-300 rounded-md shadow bg-white">
-            <div className="grid gap-2">
-                <label htmlFor="columnName">
-                    <span className="text-gray-600">Column Name:</span>
-                </label>
+    function handleAddButtonClick() {
+        setIsAdding(true);
+    }
 
-                <input type="text" id="columnName" placeholder="Column Name" className="rounded border border-gray-300 p-2 w-full"/>
-                <button type="submit" className="btn-primary w-full">Create Column</button>
-            </div>
-        </form>  
+    function handleCancel() {
+        setIsAdding(false);
+        setColumnName("");
+    }
+
+    return (
+        <div className="w-40 p-1">
+            {isAdding ? (
+                <form onSubmit={handleNewColumn} className="w-80 border border-gray-300 rounded-md shadow bg-white">
+                    <input
+                        type="text"
+                        id="columnName"
+                        placeholder="Column Name"
+                        value={columnName}
+                        onChange={(e) => setColumnName(e.target.value)}
+                        ref={inputRef}
+                        className="rounded border border-gray-300 p-2 w-full"
+                        onBlur={(e) => {
+                            // Check if the blur event is because of pressing Enter (which triggers onSubmit)
+                            // To prevent immediate cancellation when pressing Enter, use a timeout
+                            setTimeout(() => {
+                                if (columnName.trim() === "") {
+                                    handleCancel();
+                                }
+                            }, 100);
+                        }}
+                        onKeyDown={(e) => {
+                            if (e.key === "Escape") {
+                                handleCancel();
+                            }
+                        }}
+                    />
+                </form>
+            ) : (
+                <button 
+                    onClick={handleAddButtonClick} 
+                    className="btn-secondary w-full rounded-md shadow flex items-center justify-center"
+                    aria-label="Add Column"
+                >
+                    + Add Column
+                </button>
+            )}
+        </div>
     );
 }
 <End of file>
@@ -2084,48 +1048,76 @@ components/Board.tsx:
 import { ReactSortable } from 'react-sortablejs';
 import Column from './Column';
 import FormColumn from "./forms/FormColumn";
-import { Board as BoardType, Card, Column as ColumnType } from '@/app/actions/boardActions';
+import { Board as BoardType, Card } from '@/app/actions/boardActions';
 import { useState } from 'react';
-import { updateColumn } from '@/app/actions/boardActions';
+import { updateColumn } from '@/app/actions/columnActions';
+import { useAuth } from '@/app/contexts/AuthContext';
+import { Column as ColumnType} from '@/app/actions/columnActions';
+import { deleteColumn } from '@/app/actions/columnActions';
+import { deleteCard } from '@/app/actions/cardActions';
 
 type BoardProps = {
-    userId: string;
     boardId: string;
     board: BoardType;
     columns: ColumnType[];
     cards: Card[];
 }
 
-export default function Board({ userId, boardId, board, columns, cards } : BoardProps) {
+export default function Board({ boardId, columns, cards } : BoardProps) {
     const [boardColumns, setBoardColumns] = useState<ColumnType[]>(columns);
     const [boardCards, setBoardCards] = useState<Card[]>(cards);
 
+    const { userId } = useAuth();
+
+    async function handleDeleteColumn(columnId: string): Promise<void> {
+        if (!userId) return;
+    
+        try {
+            // Find the column to delete
+            const columnToDelete = boardColumns.find(col => col.id === columnId);
+            if (!columnToDelete) return;
+    
+            // Delete all cards in the column
+            const cardsInColumn = boardCards.filter(card => card.columnId === columnId);
+            await Promise.all(cardsInColumn.map(card => deleteCard(userId, boardId, card.id)));
+    
+            await deleteColumn(userId, boardId, columnToDelete.id);
+    
+            setBoardCards(prev => prev.filter(card => card.columnId !== columnId));
+            setBoardColumns(prev => prev.filter(col => col.id !== columnId));
+        } catch (error) {
+            console.error("Error deleting column:", error);
+            alert("Failed to delete column. Please try again.");
+        }
+    }
+
+
     return (
-        <div className="flex gap-4">
+        <div className="flex gap-4 items-start p-4 bg-gray-100 min-h-screen overflow-x-auto">
             <ReactSortable
-            list={columns}
+            list={boardColumns}
             setList={(sorted) => {
                 setBoardColumns(sorted);
 
                 sorted.forEach((col, index) => {
-                    updateColumn(userId, boardId, col.id, {order: index});
+                    updateColumn(userId || "", boardId, col.id, {order: index});
                 })
             }}
             group="columns"
-            className='flex gap-4'>
+            className='flex gap-4 items-start'>
                 {boardColumns.map((column) => (
                 <Column 
                     key={column.id}
-                    userId={userId} 
                     boardId={boardId} 
                     column={column}
                     cards={boardCards.filter((card) => card.columnId === column.id)}
                     setCards={setBoardCards} // this allows each Column comp to update the parent state array
+                    onDeleteColumn={handleDeleteColumn}
                 />
                 ))}
             </ReactSortable>
 
-            <FormColumn userId={userId} board={board} onColumnCreated={(newCol) => {
+            <FormColumn boardId={boardId} onColumnCreated={(newCol) => {
                 setBoardColumns([...boardColumns, newCol]);
             }} />
         </div>
@@ -2141,8 +1133,9 @@ components/boards/BoardClient.tsx:
 // Object imports
 import { useEffect, useState } from 'react';
 import { getBoard, Board as BoardType} from '@/app/actions/boardActions';
-import { getColumns, Column } from '@/app/actions/boardActions';
+import { getColumns } from '@/app/actions/boardActions';
 import { getCards, Card } from '@/app/actions/boardActions';
+import { Column } from '@/app/actions/columnActions';
 
 // Component imports
 import Loading from '@/components/Loading';
@@ -2155,29 +1148,24 @@ type BoardClientProps = {
     boardId: string,
 };
 
-export default function BoardClient({ userId, boardId } : BoardClientProps) {
+export default function BoardClient({ boardId } : BoardClientProps) {
     const [board, setBoard] = useState<BoardType | null>(null);
     const [columns, setColumns] = useState<Column[]>([]);
     const [cards, setCards] = useState<Card[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
+    const { userId } = useAuth();
 
-    const { user } = useAuth();
     useEffect(() => {
         async function fetchData() {
             setLoading(true);
 
-            if(!user) return; // make sure user is authenticated
+            if(!userId) return; // make sure user is authenticated
 
             try {
-              
-
-                const boardData = await getBoard(user?.uid, boardId);
-                console.log("Step 1 done.")
-                const columnData = await getColumns(user?.uid, boardId);
-                console.log("Step 2 done.");
-                const cardsData = await getCards(user?.uid, boardId);
-                console.log("Step 3 done.");
+                const boardData = await getBoard(userId, boardId);
+                const columnData = await getColumns(userId, boardId);
+                const cardsData = await getCards(userId, boardId);
 
                 setBoard(boardData);
                 setColumns(columnData);
@@ -2191,7 +1179,7 @@ export default function BoardClient({ userId, boardId } : BoardClientProps) {
         }
 
         fetchData();
-    }, [user, boardId]);
+    }, [userId, boardId]);
 
     if(loading) return <Loading/>;
     if(error) return <p>{error}</p>;
@@ -2213,8 +1201,7 @@ export default function BoardClient({ userId, boardId } : BoardClientProps) {
           <div>
             <p>This board has no columns. Create one to get started:</p>
             <FormColumn
-              userId={userId}
-              board={board}
+              boardId={boardId}
               onColumnCreated={(newColumn : Column) => {
                 setColumns([...columns, newColumn]);
               }}
@@ -2223,7 +1210,6 @@ export default function BoardClient({ userId, boardId } : BoardClientProps) {
         ) : (
           <Board
             board={board}
-            userId={userId}
             boardId={boardId}
             columns={columns}
             cards={cards}
@@ -2258,7 +1244,10 @@ export default function Header() {
                   <Link href="/home" className="logo hover:underline">
                     Trello Clone
                   </Link>
+                  <Link href='/create-board' className='btn btn-primary mx-5'>Create</Link>
+                  <Link href='/home' className='btn btn-boards'>Boards</Link>
                 </h1>
+                
                 <div className="flex space-x-4 items-center">
                   {/* Display Name */}
                   {user?.displayName && <span className='font-medium mx-2'>Hi, {user?.displayName}</span>}
@@ -2274,7 +1263,12 @@ components/Loading.tsx:
 <Start of file>
 export default function Loading() {
     return (
-        <p>Loading...</p>
+        <div className="flex items-center justify-center h-screen bg-gray-100">
+            <div className="flex flex-col items-center">
+                {/* SVG Spinner */}
+                <img src="/4.svg" alt="Loading..." className="h-16 w-16"/>
+            </div>
+        </div>
     );
 }
 <End of file>
@@ -2499,38 +1493,44 @@ components/Column.tsx:
 'use client';
 
 import { ReactSortable } from "react-sortablejs";
-import { Dispatch, SetStateAction } from "react";
+import { Dispatch, SetStateAction, useEffect } from "react";
 import { useState } from 'react';
-import { Card } from "@/app/actions/boardActions";
+import { Card as CardType } from "@/app/actions/boardActions";
 import { createCard } from "@/app/actions/boardActions";
-import { Column as ColumnType } from "@/app/actions/boardActions";
-import { updateCard } from "@/app/actions/cardActions";
+import { Column as ColumnType, deleteColumn } from "@/app/actions/columnActions";
+import { deleteCard, updateCard } from "@/app/actions/cardActions";
+import { useAuth } from "@/app/contexts/AuthContext";
+import Card from "./Card";
+import Options from "./options/Options";
 
 // this is called type alias and is used to define the shape or the data types of the props in the component
 // you can use an interface here as well, but using type alias is not only common practice but also offers more flexibility because of
 // the ability to define complex types like union or intersection and also serve a specific puspose
 // interfaces can be inherited while types cannot 
 type ColumnProps = {
-    userId: string;
     boardId: string;
     column: ColumnType;
-    cards: Card[];
-    setCards: Dispatch<SetStateAction<Card[]>>;
+    cards: CardType[];
+    setCards: Dispatch<SetStateAction<CardType[]>>;
+    onDeleteColumn: (columnId: string) => Promise<void>;
 }
 
-export default function Column({ userId, boardId, column, cards, setCards }: ColumnProps) {
+export default function Column({ boardId, column, cards, setCards, onDeleteColumn }: ColumnProps) {
     const [isAddingCard, setIsAddingCard] = useState<boolean>(false);
     const [newCardTitle, setNewCardTitle] = useState<string>('');
+    const { userId } = useAuth();
 
     function handleAddCard() {
         setIsAddingCard(true);
     }
 
-    async function handleCreateCard() {
+    async function handleCreateCard(keepAdding: boolean = true) {
         if(!newCardTitle.trim()) {
             setIsAddingCard(false);
             return; // ignore empty cards
         }
+
+        if(!userId) return; // still don't know how to handle this check without repeating it everywhere
 
         const newCardData = await createCard(userId, boardId, {
             title: newCardTitle,
@@ -2542,7 +1542,42 @@ export default function Column({ userId, boardId, column, cards, setCards }: Col
 
         // cleanup
         setNewCardTitle("");
-        setIsAddingCard(false);
+        setIsAddingCard(keepAdding); // setting this true so we can continue adding cards
+    }
+
+    async function handleDeleteCard(cardId:string) {
+        try{
+            await deleteCard(userId || "", boardId, cardId);
+            setCards((prevCards) => prevCards.filter(card =>  card.id !== cardId));
+        } catch (error) {
+            console.error("Error deleting card:", error);
+            alert("Failed to delete card. Please try again.");
+        }
+    }
+
+    async function handleDeleteColumn(){
+        await onDeleteColumn(column.id);
+    }
+
+    async function handleEditColumn(){
+        return; 
+    }
+
+    async function handleClearCards(){
+        if(!userId) return;
+        const deletedCards : string[] = [];
+
+        try {
+            for(const card of cards){
+                await deleteCard(userId, boardId, card.id);
+                deletedCards.push(card.id);
+            }
+
+            setCards((prevCards) => prevCards.filter(card => !deletedCards.includes(card.id)));
+        } catch (error) {
+            console.log("Cards couldn't be cleared:", error);
+            alert("Error while clearing cards.");
+        }
     }
 
     /**
@@ -2550,11 +1585,11 @@ export default function Column({ userId, boardId, column, cards, setCards }: Col
    * @param sortedCards - The new array of cards in this column after sorting
    * @param newColumnId - The ID of the column that owns these cards
    */
-    function setCardsForColumn(sortedCards: Card[], newColumnId: string) {
-        setCards((prevCards: Card[]) => {
+    function setCardsForColumn(sortedCards: CardType[], newColumnId: string) {
+        setCards((prevCards: CardType[]) => {
             const updated = [...prevCards]; // destruct with spread and give us the prev state
             
-            sortedCards.forEach((sortedCard: Card, newOrder: number) => {
+            sortedCards.forEach((sortedCard: CardType, newOrder: number) => {
                 const foundCard = updated.find((card) => card.id === sortedCard.id)
                 if(foundCard) {
                     foundCard.columnId = newColumnId;
@@ -2575,7 +1610,7 @@ export default function Column({ userId, boardId, column, cards, setCards }: Col
         });
 
         sortedCards.forEach(async (sortedCard, newOrder) => {
-            await updateCard(userId, boardId, sortedCard.id, {
+            await updateCard(userId || "", boardId, sortedCard.id, {
               columnId: newColumnId,
               order: newOrder,
             });
@@ -2584,46 +1619,1726 @@ export default function Column({ userId, boardId, column, cards, setCards }: Col
 
 
         return (
-            <div className="w-60 shadow-md bg-white rounded-md p-4">
-                <h3 className="font-semibold">{column.name}</h3>
-
+                <div className="w-80 shadow-md bg-white rounded-md p-3 flex flex-col">
+                    <div className="flex justify-between mb-2">
+                        <h3 className="font-semibold text-lg">{column.name}</h3>
+                        <Options onDelete={handleDeleteColumn} onEdit={handleEditColumn} specialAction={handleClearCards}/>
+                    </div>
                 {/* Sortable area for existing cards */}
                 <ReactSortable
-                list={cards}
-                setList={(updated) => setCardsForColumn(updated, column.id)}
-                group="cards" // ensures cross-column drag is allowed
-                className="min-h-32 p-1 flex flex-col space-y-1"
-                ghostClass="opacity-30"
+                    list={cards}
+                    setList={(updated) => {
+                        setCardsForColumn(updated, column.id);
+
+                        // TODO: Implement updateCards for concurrency of multiple users.
+                    }}
+                    group="cards" // ensures cross-column drag is allowed
+                    className="flex flex-col space-y-2"
+                    ghostClass="opacity-30"
                 >
                     {cards.map((card) => (
-                    <div key={card.id} className="border bg-white my-2 p-4 rounded-md">
-                    <span>{card.title}</span>
-                    </div>
+                        <Card key={card.id} boardId={boardId} card={card} onDelete={handleDeleteCard}/>
                     ))}
                 </ReactSortable>
 
                 {/* Add Card Button / Input */}
                 {isAddingCard ? (
-                <div className="mt-2">
-                <input
-                className="border p-1 w-full rounded"
-                autoFocus
-                value={newCardTitle}
-                onChange={(e) => setNewCardTitle(e.target.value)}
-                onBlur={handleCreateCard}
-                onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                handleCreateCard();
-                }
-                }}
-                />
-                </div>
+                    <div className="mt-2">
+                        <input
+                            className="border p-2 w-full rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            autoFocus
+                            value={newCardTitle}
+                            onChange={(e) => setNewCardTitle(e.target.value)}
+                            onBlur={() => handleCreateCard(false)}
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                handleCreateCard();
+                                }
+                            }}
+                        />
+                    </div>
                 ) : (
-                <button className="btn-secondary mt-2" onClick={handleAddCard}>
-                + Add Card
-                </button>
+                    <button className="w-full btn-secondary mt-2 p-2 rounded transition-colors" onClick={handleAddCard}>
+                    + Add Card
+                    </button>
                 )}
-            </div>
+                </div>
      );
 }
 <End of file>
+
+output.txt:
+<Start of file>
+app/home/page.tsx:
+<Start of file>
+'use client';
+
+import ProtectedRoute from "@/components/ProtectedRoute"
+import Link from "next/link";
+import { useAuth } from "../contexts/AuthContext";
+import { useEffect, useState } from "react";
+import { fetchBoards } from "../actions/boardActions";
+import Options from "@/components/options/Options";
+import { deleteBoard } from "../actions/boardActions";
+
+
+export default function HomePage() {
+    const { user } = useAuth();
+    const [boards, setBoards] = useState<any[]>([]);
+
+    useEffect(() => {
+        if (user) {
+            fetchBoards(user.uid).then(setBoards); // fetch boards for the logged in user then set the state to be those boards
+        }
+    }, [user]);
+
+    async function handleDelete(boardId: string) {
+        if(!user?.uid) return;
+
+        await deleteBoard(user?.uid, boardId);
+        setBoards((prevBoards) => prevBoards.filter((board) => board.id !== boardId)); // update real time on delete
+    }
+
+    return(
+        <ProtectedRoute>
+        <div>
+            <h1 className="text-4xl mb-4">My Boards</h1>
+            <hr />
+
+            <Link className="btn-primary inline-block" href={'/create-board'}>
+                Create new Board &rarr;
+            </Link>
+
+            {/* Displaying users' boards */}
+            <div className="mt-6 grid gap-4">
+                {boards.map(board => (
+                    <div key={board.id} className="flex items-center">
+                        <div className="flex p-4 border rounded shadow hover:bg-gray-10">
+                        <Link key={board.id} href={`/users/${user?.uid}/boards/${board.id}`}>
+                            {board.name}
+                        </Link>
+                        <Options boardId={board.id} onDelete={() =>handleDelete(board.id)} onEdit={async () => {
+                    console.log("Editing board...");
+                    // Add edit logic here, change 
+                        }}/>
+                        </div>
+                        
+                    </div>
+                ))}
+            </div>
+        </div>
+        </ProtectedRoute>
+    );
+}
+<End of file>
+
+app/contexts/AuthContext.tsx:
+<Start of file>
+'use client';
+import { createContext, useContext, useEffect, useState } from 'react';
+import { onAuthStateChanged, User } from 'firebase/auth';
+import { auth } from '@/app/utils/firebaseConfig';
+import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
+
+type AuthContextType = {
+    user: User | null;
+    userId: string | null;
+    loading: boolean;
+    login: (email: string, password: string) => Promise<void>;
+    logout: () => Promise<void>;
+};
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+    const [user, setUser] = useState<User | null>(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        // use onAuthStateChanged to listen to authentication state change
+        const unsubscribe = onAuthStateChanged(auth, (user) => {
+            setUser(user);
+            setLoading(false);
+        });
+        // clean up after unmount
+        // in react unmounting means when the component is no longer being rendered i.e. when the user logs out we no 
+        // longer need to render the header thus it's unmounted
+        return () => unsubscribe();
+    }, []);
+
+    const login = async (email: string, password: string) => {
+        await signInWithEmailAndPassword(auth, email, password);
+    };
+
+    const logout = async () => {
+        await signOut(auth);
+    };
+
+    return (
+    <AuthContext.Provider value={{ user, userId: user?.uid || null, loading, login, logout }}>
+        {children}
+    </AuthContext.Provider>
+    );
+}
+
+export function useAuth() {
+    const context = useContext(AuthContext);
+    if(!context) {
+        throw new Error("[DEV Message]: useAuth must be used within an AuthProvider");
+    }
+    return context;
+}
+<End of file>
+
+app/utils/validationSchema.ts:
+<Start of file>
+import * as yup from "yup";
+
+export const registrationSchema = yup.object().shape({
+  email: yup
+    .string()
+    .email("Invalid email format")
+    .required("Email is required")
+    .matches(
+        /^[a-zA-Z0-9._-]+@[a-zA-Z]+\.[a-zA-Z]+$/,
+        "Invalid email format"
+      ),
+  password: yup
+    .string()
+    .min(8, "Password must be at least 8 characters")
+    .required("Password is required")
+    .matches(/[A-Z]/, "Password must contain at least one uppercase letter")
+    .matches(/[a-z]/, "Password must contain at least one lowercase letter")
+    .matches(/[0-9]/, "Password must contain at least one number"),
+  username: yup
+      .string()
+      .min(6, "Username must be at least 6 characters")
+      .required("Username is required"),
+});
+<End of file>
+
+app/utils/firebaseConfig.ts:
+<Start of file>
+// Import the functions you need from the SDKs you need
+import { initializeApp, getApps, getApp } from "firebase/app";
+import { getAuth, GoogleAuthProvider } from 'firebase/auth';
+import { getFirestore } from "firebase/firestore";
+
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+// all kept in .env
+const firebaseConfig = {
+  apiKey: process.env.NEXT_PUBLIC_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_APP_ID,
+  measurementId: process.env.NEXT_PUBLIC_MEASUREMENT_ID,
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const googleProvider = new GoogleAuthProvider();
+const db = getFirestore(app);
+
+export { auth, googleProvider, db };
+<End of file>
+
+app/register/page.tsx:
+<Start of file>
+import Register from '@/components/authentication/Register';
+
+export default function RegisterPage() {
+    return <Register/>;
+}
+<End of file>
+
+app/create-board/page.tsx:
+<Start of file>
+'use client';
+
+
+import { useAuth } from "../contexts/AuthContext";
+import { useRouter } from "next/navigation";
+import { createBoard } from "../actions/boardActions";
+import { getAuth } from 'firebase/auth';
+
+export default function () {
+    // const { user } = useAuth(); // fetch current user authentication
+    const auth = getAuth();
+    const user = auth.currentUser;
+    const router = useRouter();
+
+    async function handleSubmit(formData: FormData) {
+        const boardName = formData.get('name')?.toString() || ''; // makes ts happy because we control such that if it's not a string or it's undefined we make sure it's a string, function definition will prevent it anyways
+        const boardDescription = formData.get('description')?.toString() || '';
+
+        // Ensure user is authenticated
+        if (!user) {
+            throw new Error("User must be authenticated to create a board.");
+        }
+
+        // create board in firestore
+        const { id } = await createBoard(user.uid, boardName, boardDescription);
+        router.push(`users/${user.uid}/boards/${id}`);
+    }
+
+    return (
+        <div>
+            <form action={handleSubmit} className="max-w-xs block">
+                <h1 className="text-2xl mb-3">Create new board</h1>
+                <input type="text" name="name" placeholder="Board name" className="rounded"/>
+                <input type="text" name="description" placeholder="Brief description" className="text-base my-2 rounded"/>
+                {/* <textarea id="w3review" name="w3review" rows={3} className="text-base my-2 rounded" placeholder="Board description"></textarea> */}
+                <button type="submit" className="btn-primary mt-1">Create board</button>
+            </form>
+        </div>
+    );
+}
+<End of file>
+
+app/layout.tsx:
+<Start of file>
+import "./globals.css";
+import type { Metadata } from "next";
+import { Geist, Geist_Mono } from "next/font/google";
+import { AuthProvider} from '@/app/contexts/AuthContext';
+import Header from "@/components/Header";
+
+const geistSans = Geist({
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
+});
+
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
+
+export const metadata: Metadata = {
+  title: "Create Next App",
+  description: "Generated by create next app",
+};
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  return (
+    <html lang="en">
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+      >
+        <AuthProvider>
+          <Header/>
+          <main className="m-3 bg-gray-100 rounded">{children}</main>
+        </AuthProvider>
+      </body>
+    </html>
+  );
+}
+<End of file>
+
+app/users/[userId]/boards/[boardId]/page.tsx:
+<Start of file>
+// this is an optional page and this means that we can change the layout of board specific pages
+// I'm not going to implement this right now because I don't think this is the main purpose of the project
+// The use case here can be that while in "work mode" we might use a different layout than the main pages i.e. when we're inside a
+// board we might like to put the header somewhere differently, we might want to add additioanl sections than the ones in the app etc.
+
+
+// IMPORTANT: the dynamic routting has to be set up exactly like the collection in firebase
+import React from 'react';
+import BoardClient from '@/components/boards/BoardClient';
+import ProtectedRoute from '@/components/ProtectedRoute';
+
+type BoardPageProps = {
+    params: Promise<{
+        userId: string;
+        boardId: string; // will be used to specify dynamic board route
+    }>;
+};
+
+export default async function BoardPage({ params }: BoardPageProps) {
+    const {userId, boardId} = await params; // params are asynchronious in nextjs 15
+    
+    return (
+        <ProtectedRoute>
+            <BoardClient userId={userId} boardId={boardId}/>
+        </ProtectedRoute>
+    )
+}
+<End of file>
+
+app/actions/columnActions.ts:
+<Start of file>
+import { db } from "../utils/firebaseConfig";
+import { deleteDoc, doc, updateDoc } from 'firebase/firestore';
+
+export type Column = {
+    id: string;
+    name: string;
+    order?: number;
+    createdAt?: any;
+};
+
+
+  // this function is not implemented properly, it would be better if the delete column deletes all cards associated with the column
+  // since where I use this function I already have the list of cards, there is no reason why I should do this here
+export async function deleteColumn(userId: string, boardId: string, columnId: string){
+    const ref = doc(db, `users/${userId}/boards/${boardId}/columns/${columnId}`);
+    await deleteDoc(ref);
+}
+
+export async function updateColumn(
+    userId: string,
+    boardId: string,
+    columnId: string,
+    data: Partial<Column>
+  ) {
+    const ref = doc(db, `users/${userId}/boards/${boardId}/columns/${columnId}`);
+    await updateDoc(ref, data);
+  }
+<End of file>
+
+app/actions/boardActions.ts:
+<Start of file>
+import { db } from '@/app/utils/firebaseConfig';
+import Column from '@/components/Column';
+import { query, getDocs, updateDoc, addDoc, collection, serverTimestamp, doc, getDoc, Transaction, orderBy, deleteDoc } from 'firebase/firestore';
+import { runTransaction } from 'firebase/firestore'; // this is just for testing the transaction function of firestore, and is not that important for this demo
+import { useAuth } from '../contexts/AuthContext';
+import { Column as ColumnType } from "./columnActions";
+type CreateBoardResult = {
+    id: string;
+};
+
+type CreateCardResult = {
+    id: string;
+}
+
+export type Board = {
+    id: string;
+    name: string;
+    description: string;
+    createdAt: any;
+    columnCount?: number;
+    cards: Card[];
+}
+
+
+
+export type Card = {
+    id: string;
+    title: string;
+    description?: string;
+    columnId?: string;
+    order: number;
+    createdAt?: any;
+}
+
+type ColumnInput = Omit<ColumnType, 'id' | 'createdAt'>;
+
+type CardInput = Omit<Card, 'id' | 'createdAt'>;
+// Omit means same as card but without second argument
+
+
+
+export async function createBoard(userId:string, name: string, description: string) : Promise<CreateBoardResult> {
+    // reference of boards subcollection for userId, under users collection
+    const boardsCollection = collection(db, `users/${userId}/boards`);
+
+    try {
+        // add new board document to firestore
+        const docRef = await addDoc(boardsCollection, {
+            name,
+            description,
+            createdAt: serverTimestamp(), // creation timestamp 
+            columnCount: 0,
+        });
+
+        const boardPath = `users/${userId}/boards/${docRef.id}`;
+        const columnsCollection = collection(db, `${boardPath}/columns`);
+        const cardsCollection = collection(db, `${boardPath}/cards`);
+
+        await Promise.all([
+            addDoc(columnsCollection, { placeholder: true }).catch((err) => {
+                console.error("Failed to create columns placeholder:", err);
+            }),
+            addDoc(cardsCollection, { placeholder: true }).catch((err) => {
+                console.error("Failed to create cards placeholder:", err);
+            }),
+        ]);
+
+        console.log("Document written with ID: ", docRef.id);
+
+        return { id: docRef.id }; // return new board ID
+      } catch (err) {
+        console.error("Error adding document: ", err);
+        throw new Error("Failed to create board. Please try again later.");
+      }
+
+}
+
+// firestore doesn't cascade subcollection on delete, as they are all treated as seperate entities
+// there are 3 options here: 1. delete each subcollection manually; 2. use a firebase extension; 
+// 3. write a firebase server function (which will recursevilly delete all subcollections and documents etc) -> this is just writting the extension ourselves
+// because I'm having some trouble installing the extension for some reason, I have decided to take the 1st approach
+export async function deleteBoard(userId: string, boardId: string) {
+    const boardPath = `users/${userId}/boards/${boardId}`;
+
+    const boardRef = doc(db, boardPath);
+    const columnsRef = collection(boardRef, 'columns');
+    const cardsRef = collection(boardRef, 'cards');
+    
+    const columnsSnapshot = await getDocs(columnsRef);
+    const cardsSnapshot = await getDocs(cardsRef);
+
+    for(const column of columnsSnapshot.docs){
+        await deleteDoc(column.ref);
+    }
+
+    for(const cards of cardsSnapshot.docs){
+        await deleteDoc(cards.ref); // ref is the reference to that doc within the subcollection
+    }
+
+     // placing here because it will have no subcollections
+    await deleteDoc(boardRef); 
+}
+
+export async function createColumn(userId: string, boardId: string, columnName: string) : Promise<ColumnType> {
+    // fetch board first, then fetch 
+   const boardRef = doc(db, `users/${userId}/boards/${boardId}`);
+   const columnRef = collection(boardRef, 'columns');
+
+   return runTransaction(db, async (transaction) => {
+    const boardSnap = await transaction.get(boardRef);
+    if(!boardSnap.exists()) {
+        throw new Error("Board doesn't exist.");
+    }
+
+    const boardData = boardSnap.data() as Board;
+    const currentCount = boardData.columnCount ?? 0; // ?? if null turn 0, like in swift
+
+    // create a new reference of the column in firestore and  set its' data
+    const newColumnRef = doc(columnRef);
+    transaction.set(newColumnRef, {
+        name: columnName,
+        order: currentCount,
+        createdAt: serverTimestamp(),
+    });
+
+    transaction.update(boardRef, { columnCount: currentCount + 1});
+
+    return {
+        id: newColumnRef.id,
+        name: columnName,
+        order: currentCount,
+    };
+   });
+}
+
+export async function createCard(userId: string, boardId: string, cardData: CardInput) : Promise<Card> {
+    const cardsCollection = collection(db, `users/${userId}/boards/${boardId}/cards`);
+
+    try {
+        const docRef = await addDoc(cardsCollection, {
+            ...cardData,
+            createdAt: serverTimestamp(),
+        });
+        console.log("Card created with ID: ", docRef.id);
+
+        return { 
+            id: docRef.id,
+            ...cardData 
+        };
+    } catch (err) {
+        console.error("Error adding card: ", err);
+        throw new Error("Failed to create card. Please try again later.");
+    }
+}
+
+export async function fetchBoards(userId: string) : Promise<Board[]> {
+    const boardCollection = collection(db, `users/${userId}/boards`);
+    const snapshot = await getDocs(boardCollection); // snapshot querry result from Firestore that 
+    // contains metadata and data of the collection we're trying to fetch
+
+    return snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(), // spread rest of the document data as defined in Board
+    })) as Board[];
+}
+
+export async function getBoard(userId: string, boardId: string) : Promise<Board> {
+    // document reference so we can fetch it below
+    const docRef = doc(db, `users/${userId}/boards/${boardId}`);
+    const docSnap = await getDoc(docRef);
+
+    if(!docSnap.exists()) {
+        throw new Error("No such board found.");
+    }
+
+    return {
+        id: boardId,
+        ...(docSnap.data() as Omit<Board, 'id'>), // ensure it matches the Board type with Omit
+    }
+}
+
+export async function getColumns(userId: string, boardId: string) : Promise<ColumnType[]> {
+    const columnsRef = collection(db, `users/${userId}/boards/${boardId}/columns`);
+    const columnsQuery = query(columnsRef, orderBy("order"));
+    const snapshot = await getDocs(columnsQuery);
+
+    return snapshot.docs
+        .filter((doc) => !doc.data().placeholder) // ensure we don't return placeholders
+        .map((doc) => ({
+            id: doc.id,
+            ...(doc.data() as Omit<ColumnType, 'id'>),
+        }));
+}
+
+export async function getCards(userId: string, boardId: string) : Promise<Card[]> {
+    const cardsRef = collection(db,`users/${userId}/boards/${boardId}/cards`);
+    const snapshot = await getDocs(cardsRef);
+
+    return snapshot.docs
+        .filter((doc) => !doc.data().placeholder)    
+        .map(doc => ({
+        id: doc.id,
+        ...(doc.data() as Omit<Card, 'id'>),
+    }));
+}
+<End of file>
+
+app/actions/cardActions.ts:
+<Start of file>
+import { db } from "../utils/firebaseConfig";
+import { deleteDoc, doc, updateDoc } from 'firebase/firestore';
+
+type UpdateCardData = {
+    columnId?: string;
+    order?: number;
+    title?: string;
+    description?: string;
+}
+
+export async function updateCard(userId: string, boardId: string, cardId: string, data:UpdateCardData) {
+    if (userId === "") return;
+    
+    const cardDocRef = doc(db, `users/${userId}/boards/${boardId}/cards/${cardId}`);
+    await updateDoc(cardDocRef, data);
+}
+
+export async function deleteCard(userId: string, boardId: string, cardId:string) {
+    if (userId === "") return;
+
+    const cardDocRef = doc(db, `users/${userId}/boards/${boardId}/cards/${cardId}`);
+    await deleteDoc(cardDocRef);
+}
+<End of file>
+
+app/page.tsx:
+<Start of file>
+'use client';
+
+import LandingPage from "@/components/views/LandingPage";
+import Loading from "@/components/Loading";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
+import { useAuth } from '@/app/contexts/AuthContext';
+
+
+
+export default function Home() {
+  const { user, loading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if(!loading && user) {
+      router.push('/home');
+    }
+  }, [user,loading, router]);
+
+  if(loading) return <Loading/>;
+
+  return <LandingPage/>;
+}
+<End of file>
+
+app/globals.css:
+<Start of file>
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* :root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: Arial, Helvetica, sans-serif;
+} */
+
+
+@layer components {
+  .btn-primary {
+    @apply bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-700;
+  }
+
+  .btn-secondary {
+    @apply bg-gray-500 text-white py-2 px-4 rounded hover:bg-gray-700;
+  }
+
+  .btn-boards {
+    @apply bg-indigo-500 text-white py-2 px-4 rounded hover:bg-indigo-700;
+  }
+
+  .card {
+    @apply bg-white shadow-lg rounded p-6;
+  }
+
+  .alert {
+    @apply bg-red-500 text-white font-bold py-3 px-4 rounded;
+  }
+
+}
+
+.btn-google {
+  @apply flex items-center justify-center space-x-2 rounded px-4 py-2;
+  @apply bg-red-500 text-white hover:bg-red-600;
+}
+
+.center {
+  text-align: center;
+}
+<End of file>
+
+app/login/page.tsx:
+<Start of file>
+import Login from '@/components/Login';
+
+export default function LoginPage() {
+    return <Login/>;
+}
+<End of file>
+
+script.sh:
+<Start of file>
+#!/usr/bin/env bash
+
+# Usage:
+#   ./collect-files.sh /path/to/folder /path/to/output.txt
+
+# The first argument is the folder to scan
+FOLDER="$1"
+# The second argument is the file in which we want to append the output
+OUTPUT_FILE="$2"
+
+# Clear or create the output file
+> "$OUTPUT_FILE"
+
+# Use 'find' to list all files (not directories) within $FOLDER
+# Then read each file path line by line.
+while IFS= read -r FILE; do
+  
+  if [[ "$FILE" == *.ico ]]; then
+    echo "Skipping file with .ico extension"
+    continue
+  fi
+  # Make sure it is indeed a file, not something else
+  if [[ -f "$FILE" ]]; then
+    # Derive the relative path by removing the leading "$FOLDER/"
+    RELATIVE_PATH="${FILE#$FOLDER/}"
+    
+    # Append the relative path to the output file
+    echo "$RELATIVE_PATH:" >> "$OUTPUT_FILE"
+    
+    # Append the contents in quotes. 
+    # NOTE: This will just wrap everything in one big set of quotes.
+    # If the file has internal double quotes, that may interfere, so be cautious.
+    echo "<Start of file>" >> "$OUTPUT_FILE"
+    echo "$(cat "$FILE")" >> "$OUTPUT_FILE"
+    echo "<End of file>" >> "$OUTPUT_FILE"
+    
+    # Optionally, add a blank line after each entry for readability
+    echo >> "$OUTPUT_FILE"
+  fi
+
+done < <(find "$FOLDER" -type f)
+<End of file>
+
+components/options/Options.tsx:
+<Start of file>
+"use client";
+import { useAuth } from '@/app/contexts/AuthContext';
+import { useState } from 'react';
+
+
+type OptionProps = {
+    boardId?: string;
+    onEdit?: () => Promise<void>;
+    onDelete: () => Promise<void>;
+    specialAction?: () => Promise<any>;
+}
+
+export default function Options({ onEdit, onDelete, specialAction } : OptionProps) {
+    const [isOpen, setIsOpen] = useState(false);
+
+    function toggleMenu() {
+        setIsOpen((prev) => !prev); // cool way to avoid checking the state first, give me the opposite state of whatever it is
+    };
+
+    async function handleEdit() {
+        if(onEdit){
+            await onEdit();
+            setIsOpen(false);
+        }
+    };
+
+    async function handleDelete() {
+        await onDelete();
+        setIsOpen(false);
+
+    };
+
+    async function handleSpecialAction() {
+        if(specialAction){
+            await specialAction();
+            setIsOpen(false);
+        }
+    };
+
+    return (
+        <div className='relative inline-block'>
+            <button onClick={toggleMenu}
+                onBlur={toggleMenu} 
+                className='flex items-center justify-center w-6 h-6 text-gray-500 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-0 rounded box-border'
+                aria-haspopup='true'
+                aria-expanded={isOpen}
+                aria-label='Options'>
+                <span className='flex items-center justify-center h-full text-xl leading-none align-middle pb-3'>...</span>
+            </button>
+
+            {/* toggled menu */}
+            {isOpen && (
+                <div className='flex flex-col absolute left-0 mt-1 bg-white border rounded shadow-lg z-10'>
+                    <button onClick={handleEdit} className="block w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100">
+                        Edit
+                    </button>
+                    <button onClick={handleDelete} className="flex w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-100">
+                        Delete
+                    </button>
+                    {specialAction && (
+                        <button onClick={handleSpecialAction} className="flex w-full px-4 py-2 text-left text-sm text-blue-600 hover:bg-blue-100 whitespace-nowrap">
+                        Clear Cards
+                    </button>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+}
+<End of file>
+
+components/Card.tsx:
+<Start of file>
+import { Card as CardType} from "@/app/actions/boardActions";
+import Options from "./options/Options";
+
+type CardProps = {
+    card: CardType;
+    boardId: string;
+    onDelete: (cardId: string) => Promise<void>;
+}
+
+export default function Card({ boardId, card, onDelete } : CardProps) {
+
+    async function handleDelete(){
+        if (typeof onDelete !== 'function') {
+            console.error("onDelete prop is not a function:", onDelete);
+            return;
+        }
+        await onDelete(card.id);
+    }
+
+    async function handleEdit(){
+        // TO-DO: Implement redirecting to open the card menu
+    }
+
+    return (
+        <div className="flex items-center justify-between border bg-white my-2 p-3 rounded-md">
+            <span className="flex-auto">{card.title}</span>
+            <Options boardId={boardId} onEdit={() => handleEdit()} onDelete={handleDelete}/>
+        </div>
+    );
+}
+<End of file>
+
+components/forms/FormColumn.tsx:
+<Start of file>
+// we explicitly mark a component to be a client component ('use client') as opposed to server component 
+// because we rely on browser(client) specific interactivity e.g. onSubmit.
+'use client';
+import { FormEvent, useEffect, useRef } from "react";
+import { createColumn} from "@/app/actions/boardActions";
+import { useAuth } from "@/app/contexts/AuthContext";
+import { Column } from '@/app/actions/columnActions';
+import { useState } from "react";
+
+ 
+type FormColumnProps = {
+    boardId: string;
+    onColumnCreated: (newColumn: Column) => void;
+}
+
+
+export default function FormColumn({ boardId, onColumnCreated } : FormColumnProps) {
+    const [isAdding, setIsAdding] = useState(false);
+    const [columnName, setColumnName] = useState<string>("");
+    const { userId } = useAuth();
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        if(isAdding && inputRef.current) {
+            inputRef.current.focus();
+        }
+    }, [isAdding]);
+
+    // async function handleNewColumn(event: FormEvent) {
+    //     event.preventDefault();
+
+    //     // Downcasting here since TypeScript treats event.target as EventTarget, so we're specifying it's type directly
+    //     // So the 'as' keyword basically works in the following way, we're telling the TS compiler that "trust me I know this is of type X"
+    //     // So we're explicitly telling the TS compiler that this var is of type X, so we can use querySelector without having type safety issues
+    //     // the EventTarget doesn't have querySelector on the prototype chain so regular JS would just go down the prototype chain until it finds it
+    //     // but as we know this can cause runtime errors so TS says "nope can't do that until I know it's definetely there"
+    //     // In short 'as' is used for downcasting or upcasting
+    //     const input = (event.target as HTMLFormElement).querySelector('input#columnName') as HTMLInputElement || null;
+    //     const columnName = input?.value.trim();
+
+    //     if(!columnName || !userId) return; // don't create a column if the name is blank upon click or if user is not logged in
+
+    //     const newColumnData = await createColumn(userId, boardId, columnName);
+    //     onColumnCreated(newColumnData);
+
+    //     if(input) {
+    //         input.value = "";
+    //     }
+    // }
+
+    async function handleNewColumn(event: FormEvent){
+        event.preventDefault();
+
+        const trimmerName = columnName.trim();
+
+        if(!trimmerName || !userId) {
+            setIsAdding(false);
+            return;
+        }
+
+        try {
+            const newColumnData = await createColumn(userId, boardId, trimmerName);
+            onColumnCreated(newColumnData);
+            setColumnName("");
+            setIsAdding(false);
+        } catch (error) {
+            console.error("Error creating column:", error);
+            alert("Failed to create column. Please try again.");
+            setIsAdding(false);
+        }
+    }
+
+    function handleAddButtonClick() {
+        setIsAdding(true);
+    }
+
+    function handleCancel() {
+        setIsAdding(false);
+        setColumnName("");
+    }
+
+    return (
+        <div className="w-40 p-1">
+            {isAdding ? (
+                <form onSubmit={handleNewColumn} className="w-80 border border-gray-300 rounded-md shadow bg-white">
+                    <input
+                        type="text"
+                        id="columnName"
+                        placeholder="Column Name"
+                        value={columnName}
+                        onChange={(e) => setColumnName(e.target.value)}
+                        ref={inputRef}
+                        className="rounded border border-gray-300 p-2 w-full"
+                        onBlur={(e) => {
+                            // Check if the blur event is because of pressing Enter (which triggers onSubmit)
+                            // To prevent immediate cancellation when pressing Enter, use a timeout
+                            setTimeout(() => {
+                                if (columnName.trim() === "") {
+                                    handleCancel();
+                                }
+                            }, 100);
+                        }}
+                        onKeyDown={(e) => {
+                            if (e.key === "Escape") {
+                                handleCancel();
+                            }
+                        }}
+                    />
+                </form>
+            ) : (
+                <button 
+                    onClick={handleAddButtonClick} 
+                    className="btn-secondary w-full rounded-md shadow flex items-center justify-center"
+                    aria-label="Add Column"
+                >
+                    + Add Column
+                </button>
+            )}
+        </div>
+    );
+}
+<End of file>
+
+components/ProtectedRoute.tsx:
+<Start of file>
+'use client';
+import { useAuth } from '@/app/contexts/AuthContext';
+import { useRouter } from "next/navigation";
+import { useEffect } from 'react';
+
+export default function ProtectedRoute({ children }: { children: React.ReactNode }) {
+    const { user, loading } = useAuth();
+    const router = useRouter();
+
+    useEffect(() => {
+        if(!loading && !user) {
+            router.push("/");
+        }
+    }, [user, loading, router]);
+
+    if (loading || !user) return <p>Loading...</p>;
+
+    return <>{children}</>;
+}
+<End of file>
+
+components/Login.tsx:
+<Start of file>
+'use client';
+import { useState } from 'react';
+import { useAuth } from '@/app/contexts/AuthContext';
+import { useRouter } from 'next/navigation';
+import GoogleLoginButton from './authentication/GoogleLoginButton';
+
+export default function Login() {
+    const [email, setEmail] = useState("");
+    const [password, setPassword] = useState("");
+    const [error, setError] = useState<string | null>(null);
+    const { login } = useAuth();
+    const router = useRouter();
+
+    async function handleLogin(event: React.FormEvent) {
+        event.preventDefault();
+        setError(null);
+
+        try{
+            await login(email, password); // this is called from the AuthContext within the context of this component passed as AuthContext
+            router.push("/home");
+        } catch (err: any) {
+            switch (err.code) {
+                case "auth/user-not-found":
+                  setError("No account found with this email. Please register or try a different email.");
+                  break;
+                case "auth/invalid-credential":
+                  setError("Incorrect password. Please try again.");
+                  break;
+                case "auth/invalid-email":
+                  setError("The email address is not valid. Please check and try again.");
+                  break;
+                case "auth/too-many-requests":
+                  setError("Too many login attempts. Please try again later.");
+                  break;
+                default:
+                  setError("An unexpected error occurred. Please try again later.");
+                  console.log(err.code);
+                  break;
+              }
+        }
+    }
+
+    return (
+        <div className="w-80 p-6 mx-auto mt-10 bg-white rounded shadow">
+        <h1 className="text-xl font-bold mb-4">Login</h1>
+        {error && <p className="text-red-500 mb-4">{error}</p>}
+        <form onSubmit={handleLogin}>
+          <div className="grid gap-2">
+            <input
+              type="email"
+              placeholder="Email"
+              className="rounded border p-2 w-full"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+            <input
+              type="password"
+              placeholder="Password"
+              className="rounded border p-2 w-full"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+            <button type="submit" className="btn-primary w-full">
+              Login
+            </button>
+          </div>
+        </form>
+        <div className="my-1 text-center text-gray-400"><small>or</small></div>
+            <GoogleLoginButton>Login with Google</GoogleLoginButton>
+      </div>
+    );
+}
+<End of file>
+
+components/Board.tsx:
+<Start of file>
+'use client';
+import { ReactSortable } from 'react-sortablejs';
+import Column from './Column';
+import FormColumn from "./forms/FormColumn";
+import { Board as BoardType, Card } from '@/app/actions/boardActions';
+import { useState } from 'react';
+import { updateColumn } from '@/app/actions/columnActions';
+import { useAuth } from '@/app/contexts/AuthContext';
+import { Column as ColumnType} from '@/app/actions/columnActions';
+import { deleteColumn } from '@/app/actions/columnActions';
+import { deleteCard } from '@/app/actions/cardActions';
+
+type BoardProps = {
+    boardId: string;
+    board: BoardType;
+    columns: ColumnType[];
+    cards: Card[];
+}
+
+export default function Board({ boardId, columns, cards } : BoardProps) {
+    const [boardColumns, setBoardColumns] = useState<ColumnType[]>(columns);
+    const [boardCards, setBoardCards] = useState<Card[]>(cards);
+
+    const { userId } = useAuth();
+
+    async function handleDeleteColumn(columnId: string): Promise<void> {
+        if (!userId) return;
+    
+        try {
+            // Find the column to delete
+            const columnToDelete = boardColumns.find(col => col.id === columnId);
+            if (!columnToDelete) return;
+    
+            // Delete all cards in the column
+            const cardsInColumn = boardCards.filter(card => card.columnId === columnId);
+            await Promise.all(cardsInColumn.map(card => deleteCard(userId, boardId, card.id)));
+    
+            await deleteColumn(userId, boardId, columnToDelete.id);
+    
+            setBoardCards(prev => prev.filter(card => card.columnId !== columnId));
+            setBoardColumns(prev => prev.filter(col => col.id !== columnId));
+        } catch (error) {
+            console.error("Error deleting column:", error);
+            alert("Failed to delete column. Please try again.");
+        }
+    }
+
+
+    return (
+        <div className="flex gap-4 items-start p-4 bg-gray-100 min-h-screen overflow-x-auto">
+            <ReactSortable
+            list={boardColumns}
+            setList={(sorted) => {
+                setBoardColumns(sorted);
+
+                sorted.forEach((col, index) => {
+                    updateColumn(userId || "", boardId, col.id, {order: index});
+                })
+            }}
+            group="columns"
+            className='flex gap-4 items-start'>
+                {boardColumns.map((column) => (
+                <Column 
+                    key={column.id}
+                    boardId={boardId} 
+                    column={column}
+                    cards={boardCards.filter((card) => card.columnId === column.id)}
+                    setCards={setBoardCards} // this allows each Column comp to update the parent state array
+                    onDeleteColumn={handleDeleteColumn}
+                />
+                ))}
+            </ReactSortable>
+
+            <FormColumn boardId={boardId} onColumnCreated={(newCol) => {
+                setBoardColumns([...boardColumns, newCol]);
+            }} />
+        </div>
+    );
+}
+<End of file>
+
+components/boards/BoardClient.tsx:
+<Start of file>
+// this is the client part of the dynamic boardId page which is supposed to render on client
+'use client';
+
+// Object imports
+import { useEffect, useState } from 'react';
+import { getBoard, Board as BoardType} from '@/app/actions/boardActions';
+import { getColumns } from '@/app/actions/boardActions';
+import { getCards, Card } from '@/app/actions/boardActions';
+import { Column } from '@/app/actions/columnActions';
+
+// Component imports
+import Loading from '@/components/Loading';
+import Board from '../Board';
+import FormColumn from '../forms/FormColumn';
+import { useAuth } from '@/app/contexts/AuthContext';
+
+type BoardClientProps = {
+    userId: string,
+    boardId: string,
+};
+
+export default function BoardClient({ boardId } : BoardClientProps) {
+    const [board, setBoard] = useState<BoardType | null>(null);
+    const [columns, setColumns] = useState<Column[]>([]);
+    const [cards, setCards] = useState<Card[]>([]);
+    const [loading, setLoading] = useState<boolean>(true);
+    const [error, setError] = useState<string | null>(null);
+    const { userId } = useAuth();
+
+    useEffect(() => {
+        async function fetchData() {
+            setLoading(true);
+
+            if(!userId) return; // make sure user is authenticated
+
+            try {
+                const boardData = await getBoard(userId, boardId);
+                const columnData = await getColumns(userId, boardId);
+                const cardsData = await getCards(userId, boardId);
+
+                setBoard(boardData);
+                setColumns(columnData);
+                setCards(cardsData);
+            } catch (err) {
+                console.error("Failed to fetch data for board: ", err);
+                setError("Failed to fetch data for board in BoardClient.");
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        fetchData();
+    }, [userId, boardId]);
+
+    if(loading) return <Loading/>;
+    if(error) return <p>{error}</p>;
+    if(!board) return <p>Board not found</p>;
+
+    return (
+        <div>
+      {/* The board info at the top */}
+      <h1 className="text-4xl mb-4">{board.name}</h1>
+      <p className="text-gray-600">{board.description}</p>
+      <hr />
+      <p className="text-sm text-gray-500">
+        Created on:{" "}
+        {new Date(board.createdAt.seconds * 1000).toLocaleDateString()}
+      </p>
+
+      <section>
+        {columns.length === 0 ? (
+          <div>
+            <p>This board has no columns. Create one to get started:</p>
+            <FormColumn
+              boardId={boardId}
+              onColumnCreated={(newColumn : Column) => {
+                setColumns([...columns, newColumn]);
+              }}
+            />
+          </div>
+        ) : (
+          <Board
+            board={board}
+            boardId={boardId}
+            columns={columns}
+            cards={cards}
+          />
+        )}
+      </section>
+      </div>
+    );
+
+}
+<End of file>
+
+components/Header.tsx:
+<Start of file>
+'use client';
+import Link from 'next/link';
+import LogoutButton from './authentication/LogoutButton';
+import { getAuth } from 'firebase/auth';
+import { useAuth } from '@/app/contexts/AuthContext';
+
+export default function Header() {
+    const auth = getAuth();
+    const { loading }  = useAuth();
+    const user = auth.currentUser;
+
+    if(loading || !auth) return null;
+
+        return (
+            <>
+            {user && (<header className="m-3 bg-gray-500 rounded p-4 flex justify-between items-center text-white">
+                <h1 className="text-2xl font-bold">
+                  <Link href="/home" className="logo hover:underline">
+                    Trello Clone
+                  </Link>
+                  <Link href='/create-board' className='btn btn-primary mx-5'>Create</Link>
+                  <Link href='/home' className='btn btn-boards'>Boards</Link>
+                </h1>
+                
+                <div className="flex space-x-4 items-center">
+                  {/* Display Name */}
+                  {user?.displayName && <span className='font-medium mx-2'>Hi, {user?.displayName}</span>}
+                  <LogoutButton/>
+                </div>
+            </header>)}
+            </>
+        );
+}
+<End of file>
+
+components/Loading.tsx:
+<Start of file>
+export default function Loading() {
+    return (
+        <div className="flex items-center justify-center h-screen bg-gray-100">
+            <div className="flex flex-col items-center">
+                {/* SVG Spinner */}
+                <img src="/4.svg" alt="Loading..." className="h-16 w-16"/>
+            </div>
+        </div>
+    );
+}
+<End of file>
+
+components/views/LandingPage.tsx:
+<Start of file>
+'use client'
+import Link from 'next/link';
+
+export default function LandingPage() {
+    return (
+        <div className="min-h-screen bg-gray-100 flex flex-col justify-center items-center">
+            <div className="text-center">
+                <h1 className="text-6xl font-bold mb-6 text-gray-800">Trello Clone</h1>
+                <h2 className="text-2xl font-medium mb-10 text-gray-600">For MVP Masters Projects</h2>
+                <div className="flex space-x-6 justify-center mb-8">
+                    <Link href="/login">
+                        <button className="btn-primary text-lg px-8 py-4">Login</button>
+                    </Link>
+                    <Link href="/register">
+                        <button className="btn-secondary text-lg px-8 py-4">Register</button>
+                    </Link>
+                </div>
+                <div className="flex flex-col space-y-2">
+                    <a href="https://github.com/" target="_blank" rel="noopener noreferrer" className="text-blue-500 underline">
+                        GitHub Repository
+                    </a>
+                    <a href="https://www.linkedin.com/" target="_blank" rel="noopener noreferrer" className="text-blue-500 underline">
+                        LinkedIn Profile
+                    </a>
+                </div>
+            </div>
+        </div>
+    );
+}
+<End of file>
+
+components/authentication/LogoutButton.tsx:
+<Start of file>
+import { useAuth } from '@/app/contexts/AuthContext';
+import { useRouter } from 'next/navigation';
+
+export default function LogoutButton() {
+    const { logout } = useAuth();
+    const router = useRouter();
+
+    const handleLogout = async () => {
+        await logout();
+        router.push('/');
+    }
+
+    return (
+        <button
+            onClick={handleLogout}
+            className="text-white bg-red-500 px-4 py-2 rounded hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2"
+        >
+            Log Out
+        </button>
+        // <Link href={'/'} onClick={logout} className='text-white bg-red-500 px-4 py-2 rounded hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2'>
+        //     Logout
+        // </Link>
+    );
+}
+<End of file>
+
+components/authentication/Register.tsx:
+<Start of file>
+'use client';
+import { useState } from 'react';
+import { createUserWithEmailAndPassword, updateProfile, getAuth } from 'firebase/auth';
+import { auth } from '@/app/utils/firebaseConfig';
+import { useRouter } from 'next/navigation';
+import { useForm } from "react-hook-form";
+import { yupResolver } from "@hookform/resolvers/yup";
+import * as yup from "yup";
+import { registrationSchema } from '@/app/utils/validationSchema';
+import GoogleLoginButton from './GoogleLoginButton';
+
+type FormData = {
+    email: string;
+    password: string;
+    username: string;
+};
+
+
+export default function Register() {
+    const [email, setEmail] = useState("");
+    const [password, setPassword] = useState("");
+    const [error, setError] = useState<string | null>(null);
+    const [success, setSuccess] = useState(false);
+    const router = useRouter();
+
+    // Hook into react-hook-form and use yup schema validation
+    const {
+        register,
+        handleSubmit,
+        formState: { errors },
+    } = useForm<FormData>({
+        resolver: yupResolver(registrationSchema),
+    });
+
+    async function handleRegister(data: FormData) {
+        console.log("Form data submitted:", data);
+        setError(null);
+        setSuccess(false);
+
+        try {
+            const userCredidential = await createUserWithEmailAndPassword(auth, data.email, data.password);
+            const user = userCredidential.user;
+
+            setSuccess(true);
+            await updateProfile(user, { displayName: data.username });
+
+            const currAuth = getAuth();
+            const currentUserInfo = currAuth.currentUser;
+            console.log(currentUserInfo);
+            router.push("/login");
+        } catch (err: any) {
+            switch (err.code) {
+                case "auth/email-already-in-use":
+                    setError("The email address is already registered. Please use a different email or log in.");
+                    break;
+                case "auth/weak-password":
+                    setError("The password is too weak. Please use a stronger password.");
+                    break;
+                default:
+                    setError("An unexpected error occurred. Please try again later.");
+                    break;
+            }
+        }
+    }
+
+    return (
+        <div className="w-80 p-6 mx-auto mt-10 bg-white rounded shadow">
+        <h1 className="text-xl font-bold mb-4">Register</h1>
+        {error && <p className="text-red-500 mb-4">{error}</p>}
+        {success && (
+            <p className="text-green-500 mb-4">
+                Registration successful! You can log in now.
+            </p>
+            )}
+        <form onSubmit={handleSubmit(handleRegister)}>
+          <div className="grid gap-2">
+            {/* Username Input */}
+            <input 
+                type='text' 
+                placeholder='Username' 
+                className={`rounded border p-2 w-full ${errors.username ? "border-red-500" : "border-gray-300"}`}
+                {...register("username")}
+            />
+            {errors.username && (<p className='text-red-500 text-sm'>{errors.username.message}</p>)} 
+            {/* Email Input */}
+            <input
+              type="email"
+              placeholder="Email"
+              className={`rounded border p-2 w-full ${errors.email ? "border-red-500" : "border-gray-300"}`}
+              {...register("email")}
+            />
+            {errors.email && (
+                <p className='text-red-500 text-sm'>{errors.email.message}</p>
+            )}
+            {/* Password Input */}
+            <input
+              type="password"
+              placeholder="Password"
+              className={`rounded border p-2 w-full ${errors.password ? "border-red-500" : "border-gray-300"}`}
+              {...register("password")}
+            />
+            {errors.password && (
+                <p className='text-red-500 text-sm'>{errors.password.message}</p>
+            )}
+            {/* Submit Button */}
+            <button type="submit" className="btn-primary w-full">
+              Register
+            </button>
+          </div>
+        </form>
+        <div className="my-1 text-center text-gray-400"><small>or</small></div>
+            <GoogleLoginButton>Register with Google</GoogleLoginButton>
+      </div>
+    );
+}
+<End of file>
+
+components/authentication/GoogleLoginButton.tsx:
+<Start of file>
+'use client'
+import { signInWithPopup, updateProfile } from 'firebase/auth';
+import { auth, googleProvider } from '@/app/utils/firebaseConfig';
+import { useRouter } from 'next/navigation';
+
+export default function GoogleLoginButton({ children }:any){
+    const router = useRouter();
+
+    async function handleGoogleLoign() {
+        try {
+            const userCredential = await signInWithPopup(auth, googleProvider);
+            const user =userCredential.user;
+
+            // if user doesn't have a display name, derive one from email
+            if (!user.displayName && user.email) {
+                const username = user.email.split('@')[0];
+                await updateProfile(user, { displayName: username });
+            }
+            
+            router.push('/home');
+        } catch (error) {
+            console.error('Google login failed: ', error);
+        }
+    }
+
+    return (
+        <button onClick={handleGoogleLoign} type='button' className="btn-google w-full text-white bg-red-500 py-2 rounded">
+            {children}
+        </button>
+    );
+}
+<End of file>
+
+components/Column.tsx:
+<Start of file>
+'use client';
+
+import { ReactSortable } from "react-sortablejs";
+import { Dispatch, SetStateAction, useEffect } from "react";
+import { useState } from 'react';
+import { Card as CardType } from "@/app/actions/boardActions";
+import { createCard } from "@/app/actions/boardActions";
+import { Column as ColumnType, deleteColumn } from "@/app/actions/columnActions";
+import { deleteCard, updateCard } from "@/app/actions/cardActions";
+import { useAuth } from "@/app/contexts/AuthContext";
+import Card from "./Card";
+import Options from "./options/Options";
+
+// this is called type alias and is used to define the shape or the data types of the props in the component
+// you can use an interface here as well, but using type alias is not only common practice but also offers more flexibility because of
+// the ability to define complex types like union or intersection and also serve a specific puspose
+// interfaces can be inherited while types cannot 
+type ColumnProps = {
+    boardId: string;
+    column: ColumnType;
+    cards: CardType[];
+    setCards: Dispatch<SetStateAction<CardType[]>>;
+    onDeleteColumn: (columnId: string) => Promise<void>;
+}
+
+export default function Column({ boardId, column, cards, setCards, onDeleteColumn }: ColumnProps) {
+    const [isAddingCard, setIsAddingCard] = useState<boolean>(false);
+    const [newCardTitle, setNewCardTitle] = useState<string>('');
+    const { userId } = useAuth();
+
+    function handleAddCard() {
+        setIsAddingCard(true);
+    }
+
+    async function handleCreateCard(keepAdding: boolean = true) {
+        if(!newCardTitle.trim()) {
+            setIsAddingCard(false);
+            return; // ignore empty cards
+        }
+
+        if(!userId) return; // still don't know how to handle this check without repeating it everywhere
+
+        const newCardData = await createCard(userId, boardId, {
+            title: newCardTitle,
+            columnId: column.id,
+            order: cards.length,
+        });
+
+        setCards((prevState) => [...prevState, newCardData]);
+
+        // cleanup
+        setNewCardTitle("");
+        setIsAddingCard(keepAdding); // setting this true so we can continue adding cards
+    }
+
+    async function handleDeleteCard(cardId:string) {
+        try{
+            await deleteCard(userId || "", boardId, cardId);
+            setCards((prevCards) => prevCards.filter(card =>  card.id !== cardId));
+        } catch (error) {
+            console.error("Error deleting card:", error);
+            alert("Failed to delete card. Please try again.");
+        }
+    }
+
+    async function handleDeleteColumn(){
+        await onDeleteColumn(column.id);
+    }
+
+    async function handleEditColumn(){
+        return; 
+    }
+
+    async function handleClearCards(){
+        if(!userId) return;
+        const deletedCards : string[] = [];
+
+        try {
+            for(const card of cards){
+                await deleteCard(userId, boardId, card.id);
+                deletedCards.push(card.id);
+            }
+
+            setCards((prevCards) => prevCards.filter(card => !deletedCards.includes(card.id)));
+        } catch (error) {
+            console.log("Cards couldn't be cleared:", error);
+            alert("Error while clearing cards.");
+        }
+    }
+
+    /**
+   * Called whenever ReactSortable re-sorts or moves cards into this column.
+   * @param sortedCards - The new array of cards in this column after sorting
+   * @param newColumnId - The ID of the column that owns these cards
+   */
+    function setCardsForColumn(sortedCards: CardType[], newColumnId: string) {
+        setCards((prevCards: CardType[]) => {
+            const updated = [...prevCards]; // destruct with spread and give us the prev state
+            
+            sortedCards.forEach((sortedCard: CardType, newOrder: number) => {
+                const foundCard = updated.find((card) => card.id === sortedCard.id)
+                if(foundCard) {
+                    foundCard.columnId = newColumnId;
+                    foundCard.order = newOrder; // update the new position
+                }
+            });
+            
+            updated.sort((a,b) => {
+                if(a.columnId === b.columnId) {
+                    return a.order - b.order;
+                }
+                return 0;
+            });
+            // return the new processed cards, sorted by order so the reordering works, as the new state of the cards
+            // which is being called when anythin in the ReactSortable changes, specifically on the list of cards 
+
+            return updated;
+        });
+
+        sortedCards.forEach(async (sortedCard, newOrder) => {
+            await updateCard(userId || "", boardId, sortedCard.id, {
+              columnId: newColumnId,
+              order: newOrder,
+            });
+        });
+    }
+
+
+        return (
+                <div className="w-80 shadow-md bg-white rounded-md p-3 flex flex-col">
+                    <div className="flex justify-between mb-2">
+                        <h3 className="font-semibold text-lg">{column.name}</h3>
+                        <Options onDelete={handleDeleteColumn} onEdit={handleEditColumn} specialAction={handleClearCards}/>
+                    </div>
+                {/* Sortable area for existing cards */}
+                <ReactSortable
+                    list={cards}
+                    setList={(updated) => {
+                        setCardsForColumn(updated, column.id);
+
+                        // TODO: Implement updateCards for concurrency of multiple users.
+                    }}
+                    group="cards" // ensures cross-column drag is allowed
+                    className="flex flex-col space-y-2"
+                    ghostClass="opacity-30"
+                >
+                    {cards.map((card) => (
+                        <Card key={card.id} boardId={boardId} card={card} onDelete={handleDeleteCard}/>
+                    ))}
+                </ReactSortable>
+
+                {/* Add Card Button / Input */}
+                {isAddingCard ? (
+                    <div className="mt-2">
+                        <input
+                            className="border p-2 w-full rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            autoFocus
+                            value={newCardTitle}
+                            onChange={(e) => setNewCardTitle(e.target.value)}
+                            onBlur={() => handleCreateCard(false)}
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                handleCreateCard();
+                                }
+                            }}
+                        />
+                    </div>
+                ) : (
+                    <button className="w-full btn-secondary mt-2 p-2 rounded transition-colors" onClick={handleAddCard}>
+                    + Add Card
+                    </button>
+                )}
+                </div>
+     );
+}
+<End of file>
+
+output.txt:
+<Start of file>
+<End of file>
+

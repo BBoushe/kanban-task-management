@@ -1,15 +1,12 @@
 'use client';
 
-
 import { useAuth } from "../contexts/AuthContext";
 import { useRouter } from "next/navigation";
 import { createBoard } from "../actions/boardActions";
-import { getAuth } from 'firebase/auth';
 
-export default function () {
+export default function CerateBoardPage() {
     // const { user } = useAuth(); // fetch current user authentication
-    const auth = getAuth();
-    const user = auth.currentUser;
+    const { user } = useAuth();
     const router = useRouter();
 
     async function handleSubmit(formData: FormData) {

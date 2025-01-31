@@ -1,38 +1,44 @@
 'use client';
 
 import { ReactSortable } from "react-sortablejs";
-import { Dispatch, SetStateAction } from "react";
+import { Dispatch, SetStateAction, useEffect } from "react";
 import { useState } from 'react';
-import { Card } from "@/app/actions/boardActions";
+import { Card as CardType } from "@/app/actions/boardActions";
 import { createCard } from "@/app/actions/boardActions";
-import { Column as ColumnType } from "@/app/actions/boardActions";
-import { updateCard } from "@/app/actions/cardActions";
+import { Column as ColumnType, deleteColumn } from "@/app/actions/columnActions";
+import { deleteCard, updateCard } from "@/app/actions/cardActions";
+import { useAuth } from "@/app/contexts/AuthContext";
+import Card from "./Card";
+import Options from "./options/Options";
 
 // this is called type alias and is used to define the shape or the data types of the props in the component
 // you can use an interface here as well, but using type alias is not only common practice but also offers more flexibility because of
 // the ability to define complex types like union or intersection and also serve a specific puspose
 // interfaces can be inherited while types cannot 
 type ColumnProps = {
-    userId: string;
     boardId: string;
     column: ColumnType;
-    cards: Card[];
-    setCards: Dispatch<SetStateAction<Card[]>>;
+    cards: CardType[];
+    setCards: Dispatch<SetStateAction<CardType[]>>;
+    onDeleteColumn: (columnId: string) => Promise<void>;
 }
 
-export default function Column({ userId, boardId, column, cards, setCards }: ColumnProps) {
+export default function Column({ boardId, column, cards, setCards, onDeleteColumn }: ColumnProps) {
     const [isAddingCard, setIsAddingCard] = useState<boolean>(false);
     const [newCardTitle, setNewCardTitle] = useState<string>('');
+    const { userId } = useAuth();
 
     function handleAddCard() {
         setIsAddingCard(true);
     }
 
-    async function handleCreateCard() {
+    async function handleCreateCard(keepAdding: boolean = true) {
         if(!newCardTitle.trim()) {
             setIsAddingCard(false);
             return; // ignore empty cards
         }
+
+        if(!userId) return; // still don't know how to handle this check without repeating it everywhere
 
         const newCardData = await createCard(userId, boardId, {
             title: newCardTitle,
@@ -44,7 +50,42 @@ export default function Column({ userId, boardId, column, cards, setCards }: Col
 
         // cleanup
         setNewCardTitle("");
-        setIsAddingCard(false);
+        setIsAddingCard(keepAdding); // setting this true so we can continue adding cards
+    }
+
+    async function handleDeleteCard(cardId:string) {
+        try{
+            await deleteCard(userId || "", boardId, cardId);
+            setCards((prevCards) => prevCards.filter(card =>  card.id !== cardId));
+        } catch (error) {
+            console.error("Error deleting card:", error);
+            alert("Failed to delete card. Please try again.");
+        }
+    }
+
+    async function handleDeleteColumn(){
+        await onDeleteColumn(column.id);
+    }
+
+    async function handleEditColumn(){
+        return; 
+    }
+
+    async function handleClearCards(){
+        if(!userId) return;
+        const deletedCards : string[] = [];
+
+        try {
+            for(const card of cards){
+                await deleteCard(userId, boardId, card.id);
+                deletedCards.push(card.id);
+            }
+
+            setCards((prevCards) => prevCards.filter(card => !deletedCards.includes(card.id)));
+        } catch (error) {
+            console.log("Cards couldn't be cleared:", error);
+            alert("Error while clearing cards.");
+        }
     }
 
     /**
@@ -52,11 +93,11 @@ export default function Column({ userId, boardId, column, cards, setCards }: Col
    * @param sortedCards - The new array of cards in this column after sorting
    * @param newColumnId - The ID of the column that owns these cards
    */
-    function setCardsForColumn(sortedCards: Card[], newColumnId: string) {
-        setCards((prevCards: Card[]) => {
+    function setCardsForColumn(sortedCards: CardType[], newColumnId: string) {
+        setCards((prevCards: CardType[]) => {
             const updated = [...prevCards]; // destruct with spread and give us the prev state
             
-            sortedCards.forEach((sortedCard: Card, newOrder: number) => {
+            sortedCards.forEach((sortedCard: CardType, newOrder: number) => {
                 const foundCard = updated.find((card) => card.id === sortedCard.id)
                 if(foundCard) {
                     foundCard.columnId = newColumnId;
@@ -77,7 +118,7 @@ export default function Column({ userId, boardId, column, cards, setCards }: Col
         });
 
         sortedCards.forEach(async (sortedCard, newOrder) => {
-            await updateCard(userId, boardId, sortedCard.id, {
+            await updateCard(userId || "", boardId, sortedCard.id, {
               columnId: newColumnId,
               order: newOrder,
             });
@@ -86,9 +127,11 @@ export default function Column({ userId, boardId, column, cards, setCards }: Col
 
 
         return (
-                <div className="w-60 shadow-md bg-white rounded-md p-4">
-                <h3 className="font-semibold">{column.name}</h3>
-
+                <div className="w-80 shadow-md bg-white rounded-md p-3 flex flex-col">
+                    <div className="flex justify-between mb-2">
+                        <h3 className="font-semibold text-lg">{column.name}</h3>
+                        <Options onDelete={handleDeleteColumn} onEdit={handleEditColumn} specialAction={handleClearCards}/>
+                    </div>
                 {/* Sortable area for existing cards */}
                 <ReactSortable
                     list={cards}
@@ -98,13 +141,11 @@ export default function Column({ userId, boardId, column, cards, setCards }: Col
                         // TODO: Implement updateCards for concurrency of multiple users.
                     }}
                     group="cards" // ensures cross-column drag is allowed
-                    className="p-1 flex flex-col space-y-1"
+                    className="flex flex-col space-y-2"
                     ghostClass="opacity-30"
                 >
                     {cards.map((card) => (
-                    <div key={card.id} className="border bg-white my-2 p-4 rounded-md">
-                    <span>{card.title}</span>
-                    </div>
+                        <Card key={card.id} boardId={boardId} card={card} onDelete={handleDeleteCard}/>
                     ))}
                 </ReactSortable>
 
@@ -112,11 +153,11 @@ export default function Column({ userId, boardId, column, cards, setCards }: Col
                 {isAddingCard ? (
                     <div className="mt-2">
                         <input
-                            className="border p-1 w-full rounded"
+                            className="border p-2 w-full rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                             autoFocus
                             value={newCardTitle}
                             onChange={(e) => setNewCardTitle(e.target.value)}
-                            onBlur={handleCreateCard}
+                            onBlur={() => handleCreateCard(false)}
                             onKeyDown={(e) => {
                                 if (e.key === "Enter") {
                                 handleCreateCard();
@@ -125,7 +166,7 @@ export default function Column({ userId, boardId, column, cards, setCards }: Col
                         />
                     </div>
                 ) : (
-                    <button className="btn-secondary mt-2" onClick={handleAddCard}>
+                    <button className="w-full btn-secondary mt-2 p-2 rounded transition-colors" onClick={handleAddCard}>
                     + Add Card
                     </button>
                 )}

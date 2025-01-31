@@ -15,6 +15,10 @@ OUTPUT_FILE="$2"
 # Then read each file path line by line.
 while IFS= read -r FILE; do
   
+  if [[ "$FILE" == *.ico ]]; then
+    echo "Skipping file with .ico extension"
+    continue
+  fi
   # Make sure it is indeed a file, not something else
   if [[ -f "$FILE" ]]; then
     # Derive the relative path by removing the leading "$FOLDER/"

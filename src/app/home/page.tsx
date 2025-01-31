@@ -40,13 +40,19 @@ export default function HomePage() {
             <div className="mt-6 grid gap-4">
                 {boards.map(board => (
                     <div key={board.id} className="flex items-center">
-                        <Link key={board.id} href={`/users/${user?.uid}/boards/${board.id}`} className="block p-4 border rounded shadow hover:bg-gray-100">
+                        <div className="flex p-4 border rounded shadow hover:bg-gray-10">
+                        <Link key={board.id} href={`/users/${user?.uid}/boards/${board.id}`}>
                             {board.name}
                         </Link>
-                        <Options userId={(user?.uid as string)} boardId={board.id} onDelete={() =>handleDelete(board.id)} onEdit={async () => {
-                    console.log("Editing board...");
-                    // Add edit logic here
-                        }}/>
+ 
+                        <Options boardId={board.id} 
+                                onDelete={() =>handleDelete(board.id)} 
+                                onEdit={async () => {
+                                    console.log("Editing board...");
+                                    // Add edit logic here, change 
+                                    }}/>
+                        </div>
+                        
                     </div>
                 ))}
             </div>

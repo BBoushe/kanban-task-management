@@ -4,8 +4,9 @@
 // Object imports
 import { useEffect, useState } from 'react';
 import { getBoard, Board as BoardType} from '@/app/actions/boardActions';
-import { getColumns, Column } from '@/app/actions/boardActions';
+import { getColumns } from '@/app/actions/boardActions';
 import { getCards, Card } from '@/app/actions/boardActions';
+import { Column } from '@/app/actions/columnActions';
 
 // Component imports
 import Loading from '@/components/Loading';
@@ -14,33 +15,27 @@ import FormColumn from '../forms/FormColumn';
 import { useAuth } from '@/app/contexts/AuthContext';
 
 type BoardClientProps = {
-    userId: string,
     boardId: string,
 };
 
-export default function BoardClient({ userId, boardId } : BoardClientProps) {
+export default function BoardClient({ boardId } : BoardClientProps) {
     const [board, setBoard] = useState<BoardType | null>(null);
     const [columns, setColumns] = useState<Column[]>([]);
     const [cards, setCards] = useState<Card[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
+    const { userId } = useAuth();
 
-    const { user } = useAuth();
     useEffect(() => {
         async function fetchData() {
             setLoading(true);
 
-            if(!user) return; // make sure user is authenticated
+            if(!userId) return; // make sure user is authenticated
 
             try {
-              
-
-                const boardData = await getBoard(user?.uid, boardId);
-                console.log("Step 1 done.")
-                const columnData = await getColumns(user?.uid, boardId);
-                console.log("Step 2 done.");
-                const cardsData = await getCards(user?.uid, boardId);
-                console.log("Step 3 done.");
+                const boardData = await getBoard(userId, boardId);
+                const columnData = await getColumns(userId, boardId);
+                const cardsData = await getCards(userId, boardId);
 
                 setBoard(boardData);
                 setColumns(columnData);
@@ -54,7 +49,7 @@ export default function BoardClient({ userId, boardId } : BoardClientProps) {
         }
 
         fetchData();
-    }, [user, boardId]);
+    }, [userId, boardId]);
 
     if(loading) return <Loading/>;
     if(error) return <p>{error}</p>;
@@ -76,8 +71,7 @@ export default function BoardClient({ userId, boardId } : BoardClientProps) {
           <div>
             <p>This board has no columns. Create one to get started:</p>
             <FormColumn
-              userId={userId}
-              board={board}
+              boardId={boardId}
               onColumnCreated={(newColumn : Column) => {
                 setColumns([...columns, newColumn]);
               }}
@@ -86,7 +80,6 @@ export default function BoardClient({ userId, boardId } : BoardClientProps) {
         ) : (
           <Board
             board={board}
-            userId={userId}
             boardId={boardId}
             columns={columns}
             cards={cards}
