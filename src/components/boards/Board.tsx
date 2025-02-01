@@ -1,8 +1,8 @@
 import { ReactSortable } from 'react-sortablejs';
-import Column from './Column';
-import FormColumn from "./forms/FormColumn";
+import Column from '../Column';
+import FormColumn from "../forms/FormColumn";
 import { Board as BoardType, Card } from '@/app/actions/boardActions';
-import { useState } from 'react';
+import { Dispatch, SetStateAction, useState } from 'react';
 import { updateColumn } from '@/app/actions/columnActions';
 import { useAuth } from '@/app/contexts/AuthContext';
 import { Column as ColumnType } from '@/app/actions/columnActions';
@@ -14,11 +14,12 @@ type BoardProps = {
     board: BoardType;
     columns: ColumnType[];
     cards: Card[];
+    setCards: Dispatch<SetStateAction<Card[]>>;
 }
 
-export default function Board({ boardId, columns, cards } : BoardProps) {
+export default function Board({ boardId, columns, cards, setCards } : BoardProps) {
     const [boardColumns, setBoardColumns] = useState<ColumnType[]>(columns);
-    const [boardCards, setBoardCards] = useState<Card[]>(cards);
+    // const [boardCards, setBoardCards] = useState<Card[]>(cards);
 
     const { userId } = useAuth();
 
@@ -29,12 +30,12 @@ export default function Board({ boardId, columns, cards } : BoardProps) {
             const columnToDelete = boardColumns.find(col => col.id === columnId);
             if (!columnToDelete) return;
     
-            const cardsInColumn = boardCards.filter(card => card.columnId === columnId);
+            const cardsInColumn = cards.filter(card => card.columnId === columnId);
             await Promise.all(cardsInColumn.map(card => deleteCard(userId, boardId, card.id)));
     
             await deleteColumn(userId, boardId, columnToDelete.id);
     
-            setBoardCards(prev => prev.filter(card => card.columnId !== columnId));
+            setCards(prev => prev.filter(card => card.columnId !== columnId));
             setBoardColumns(prev => prev.filter(col => col.id !== columnId));
         } catch (error) {
             console.error("Error deleting column:", error);
@@ -60,8 +61,8 @@ export default function Board({ boardId, columns, cards } : BoardProps) {
                         key={column.id}
                         boardId={boardId} 
                         column={column}
-                        cards={boardCards.filter((card) => card.columnId === column.id)}
-                        setCards={setBoardCards}
+                        cards={cards.filter((card) => card.columnId === column.id)}
+                        setCards={setCards}
                         onDeleteColumn={handleDeleteColumn}
                     />
                 ))}

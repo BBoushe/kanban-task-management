@@ -7,7 +7,8 @@ import { useEffect, useState } from "react";
 import { fetchBoards } from "../actions/boardActions";
 import Options from "@/components/options/Options";
 import { deleteBoard } from "../actions/boardActions";
-import Loading from "@/components/Loading";
+import Loading from "@/components/views/Loading";
+import Header from "@/components/Header";
 
 
 
@@ -50,14 +51,20 @@ export default function HomePage() {
         <ProtectedRoute>
             <div className="p-3">
                 <h1 className="text-4xl mb-4">My Boards</h1>
-                <hr className="mb-4" />
+                <hr className="mb-4 w-[90vw]" />
 
-                <Link
+                {boards.length === 0 && (
+                    <h1 className="text-xl text-gray-500">
+                        You have no boards. <br/>Click the create button on the header to create a board.
+                    </h1>
+                    )}
+
+                {/* <Link
                     className="btn-primary inline-block mb-6 px-4 py-2 rounded text-white hover:bg-blue-700 transition-colors"
                     href={'/create-board'}
                 >
                     Create New Board &rarr;
-                </Link>
+                </Link> */}
 
                 {/* Displaying users' boards */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
@@ -73,8 +80,7 @@ export default function HomePage() {
                                     onDelete={() => handleDelete(board.id)}
                                     onEdit={async () => {
                                         console.log("Editing board...");
-                                        // Implement your edit logic here
-                                        // For example, navigate to an edit page or open a modal
+                                        // to be implemented
                                     }}
                                 />
                             </div>

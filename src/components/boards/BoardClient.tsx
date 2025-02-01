@@ -7,12 +7,18 @@ import { getBoard, Board as BoardType} from '@/app/actions/boardActions';
 import { getColumns } from '@/app/actions/boardActions';
 import { getCards, Card } from '@/app/actions/boardActions';
 import { Column } from '@/app/actions/columnActions';
+import { useSearchParams, useRouter } from 'next/navigation';
 
 // Component imports
-import Loading from '@/components/Loading';
-import Board from '../Board';
+import Loading from '@/components/views/Loading';
+import Board from './Board';
 import FormColumn from '../forms/FormColumn';
+import CardDetail from '../cards/CardDetail';
 import { useAuth } from '@/app/contexts/AuthContext';
+
+import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { db } from '@/app/utils/firebaseConfig';
+
 
 type BoardClientProps = {
     boardId: string,
@@ -25,6 +31,8 @@ export default function BoardClient({ boardId } : BoardClientProps) {
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
     const { userId } = useAuth();
+    const searchParams = useSearchParams();
+    const cardId = searchParams.get('cardId');
 
     useEffect(() => {
         async function fetchData() {
@@ -35,11 +43,8 @@ export default function BoardClient({ boardId } : BoardClientProps) {
             try {
                 const boardData = await getBoard(userId, boardId);
                 const columnData = await getColumns(userId, boardId);
-                const cardsData = await getCards(userId, boardId);
-
                 setBoard(boardData);
                 setColumns(columnData);
-                setCards(cardsData);
             } catch (err) {
                 console.error("Failed to fetch data for board: ", err);
                 setError("Failed to fetch data for board in BoardClient.");
@@ -47,9 +52,39 @@ export default function BoardClient({ boardId } : BoardClientProps) {
                 setLoading(false);
             }
         }
-
         fetchData();
     }, [userId, boardId]);
+
+    useEffect(() => {
+      if(!userId) return;
+
+      const cardsRef = collection(db, `users/${userId}/boards/${boardId}/cards`);
+      const q = query(cardsRef, orderBy("order"));
+
+      function unsubscribe() {
+        onSnapshot(q, (snapshot) => {
+          const updatedCards = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+          })) as Card[];
+          setCards(updatedCards);
+        },
+        (err) => {
+          console.error("Error fetching cards in real time: ", err);
+        });
+      } 
+
+      unsubscribe();
+    }, [userId, boardId]);
+
+    function fetchModalCard() : Card | null {
+      if(cardId) {
+        const foundCard = cards.find(card => card.id === cardId);
+        return foundCard || null;
+      } else {
+        throw new Error("You haven't clicked on card");
+      }
+    }
 
     if(loading) return <Loading/>;
     if(error) return <p>{error}</p>;
@@ -83,8 +118,14 @@ export default function BoardClient({ boardId } : BoardClientProps) {
             boardId={boardId}
             columns={columns}
             cards={cards}
+            setCards={setCards}
           />
+          
         )}
+        {cardId && (() => {
+          const fetchedCard = fetchModalCard(); // fetch the exact card from the cards list
+          return fetchedCard ? <CardDetail boardId={boardId} card={fetchedCard}/> : null;
+        })()}
       </section>
       </div>
     );

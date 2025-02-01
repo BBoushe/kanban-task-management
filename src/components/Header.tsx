@@ -9,7 +9,7 @@ export default function Header() {
     const { loading }  = useAuth();
     const user = auth.currentUser;
 
-    if(loading || !auth) return null;
+    if(loading || !user) return null;
 
     return (
       <header className="sticky top-0 z-50 bg-gray-800 p-4 flex justify-between items-center text-white shadow-md">

@@ -20,9 +20,11 @@ export type Card = {
     id: string;
     title: string;
     description?: string;
+    comments?: string[];
     columnId?: string;
     order: number;
     createdAt?: any;
+    updatedAt?: any;
 }
 
 type ColumnInput = Omit<ColumnType, 'id' | 'createdAt'>;

@@ -1,5 +1,6 @@
 import { Card as CardType} from "@/app/actions/boardActions";
-import Options from "./options/Options";
+import { useRouter } from 'next/navigation';
+import Options from "../options/Options";
 
 type CardProps = {
     card: CardType;
@@ -8,6 +9,7 @@ type CardProps = {
 }
 
 export default function Card({ boardId, card, onDelete } : CardProps) {
+    const router = useRouter();
 
     async function handleDelete(){
         if (typeof onDelete !== 'function') {
@@ -18,12 +20,16 @@ export default function Card({ boardId, card, onDelete } : CardProps) {
     }
 
     async function handleEdit(){
-        // TO-DO: Implement redirecting to open the card menu
+        router.push(`?cardId=${card.id}`);
+    }
+
+    function handleOpenCard() {
+        router.push(`?cardId=${card.id}`);
     }
 
     return (
         <div className="flex items-start justify-between border bg-white p-3 rounded-md shadow hover:bg-gray-50">
-            <span className="flex-auto break-words">{card.title}</span>
+            <span onDoubleClick={handleOpenCard} className="flex-auto break-words">{card.title}</span>
             <Options boardId={boardId} onEdit={() => handleEdit()} onDelete={handleDelete}/>
         </div>
     );

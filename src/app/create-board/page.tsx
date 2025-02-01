@@ -24,7 +24,7 @@ export default function CreateBoardPage() {
     }
 
     return (
-        <div>
+        <div className="p-2">
             <form action={handleSubmit} className="max-w-xs block">
                 <h1 className="text-2xl mb-3">Create new board</h1>
                 <input type="text" name="name" placeholder="Board name" className="rounded"/>

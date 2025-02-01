@@ -5,10 +5,10 @@ import { Dispatch, SetStateAction, useEffect } from "react";
 import { useState, useRef } from 'react';
 import { Card as CardType } from "@/app/actions/boardActions";
 import { createCard } from "@/app/actions/boardActions";
-import { Column as ColumnType, deleteColumn, updateColumn } from "@/app/actions/columnActions";
+import { Column as ColumnType, updateColumn } from "@/app/actions/columnActions";
 import { deleteCard, updateCard } from "@/app/actions/cardActions";
 import { useAuth } from "@/app/contexts/AuthContext";
-import Card from "./Card";
+import Card from "./cards/Card";
 import Options from "./options/Options";
 
 // Type definitions
@@ -34,6 +34,7 @@ export default function Column({ boardId, column, cards, setCards, onDeleteColum
         }
     }, [isEditing]);
 
+
     function handleAddCard() {
         setIsAddingCard(true);
     }
@@ -52,7 +53,8 @@ export default function Column({ boardId, column, cards, setCards, onDeleteColum
             order: cards.length,
         });
 
-        setCards((prevState) => [...prevState, newCardData]);
+        // setCards((prevState) => [...prevState, newCardData]); removed because of the onSnapshot listener, since just createCard
+        // will trigger the listener and will update the state everywhere
 
         setNewCardTitle("");
         setIsAddingCard(keepAdding);
@@ -167,7 +169,9 @@ export default function Column({ boardId, column, cards, setCards, onDeleteColum
                         value={columnName}
                         ref={inputRef}
                         onChange={(e) => setColumnName(e.target.value)}
-                        onBlur={() => handleUpdateColumn()}
+                        onBlur={() => {
+                            handleUpdateColumn();
+                        }}
                         onKeyDown={(e) => {
                             if (e.key === "Enter") handleUpdateColumn();
                             if (e.key === "Escape") setIsEdditing(false);

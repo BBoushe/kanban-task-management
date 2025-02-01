@@ -16,7 +16,7 @@ find "$FOLDER" -type f ! -path "$OUTPUT_FILE" | while IFS= read -r FILE; do
   
   # Exclude .ico files
   if [[ "$FILE" == *.ico ]]; then
-    echo "Skipping file with .ico extension: $FILE"
+    echo "Skipping file: $FILE"
     continue
   fi
   

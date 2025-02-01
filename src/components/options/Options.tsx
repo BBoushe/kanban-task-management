@@ -59,7 +59,7 @@ export default function Options({ onEdit, onDelete, specialAction } : OptionProp
                 className='flex items-center justify-center w-6 h-6 text-gray-500 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-0 rounded box-border'
                 aria-haspopup='true'
                 aria-label='Options'>
-                <span className='flex items-center justify-center h-full text-xl leading-none align-middle'>...</span>
+                <span className='flex items-center pb-3 justify-center h-full text-xl leading-none align-middle'>...</span>
             </button>
 
             {/* Toggled Menu */}

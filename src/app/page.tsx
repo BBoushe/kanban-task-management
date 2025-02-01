@@ -1,7 +1,7 @@
 'use client';
 
 import LandingPage from "@/components/views/LandingPage";
-import Loading from "@/components/Loading";
+import Loading from "@/components/views/Loading";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useAuth } from '@/app/contexts/AuthContext';

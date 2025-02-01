@@ -9,56 +9,96 @@ import { useEffect, useState } from "react";
 import { fetchBoards } from "../actions/boardActions";
 import Options from "@/components/options/Options";
 import { deleteBoard } from "../actions/boardActions";
+import Loading from "@/components/Loading";
+import Header from "@/components/Header";
+
 
 
 export default function HomePage() {
     const { user } = useAuth();
     const [boards, setBoards] = useState<any[]>([]);
+    const [loading, setLoading] = useState<boolean>(true);
 
     useEffect(() => {
         if (user) {
-            fetchBoards(user.uid).then(setBoards); // fetch boards for the logged in user then set the state to be those boards
+            fetchBoards(user.uid)
+                .then((fetchedBoards) => {
+                    setBoards(fetchedBoards);
+                    setLoading(false);
+                })
+                .catch((error) => {
+                    console.error("Error fetching boards:", error);
+                    setLoading(false);
+                });
         }
     }, [user]);
 
     async function handleDelete(boardId: string) {
-        if(!user?.uid) return;
+        if (!user?.uid) return;
 
-        await deleteBoard(user?.uid, boardId);
-        setBoards((prevBoards) => prevBoards.filter((board) => board.id !== boardId)); // update real time on delete
+        try {
+            await deleteBoard(user.uid, boardId);
+            setBoards((prevBoards) => prevBoards.filter((board) => board.id !== boardId));
+        } catch (error) {
+            console.error("Error deleting board:", error);
+            alert("Failed to delete board. Please try again.");
+        }
     }
 
-    return(
+    if (loading) {
+        return <Loading />;
+    }
+
+    return (
         <ProtectedRoute>
-        <div>
-            <h1 className="text-4xl mb-4">My Boards</h1>
-            <hr />
+            <div className="p-3">
+                <h1 className="text-4xl mb-4">My Boards</h1>
+                <hr className="mb-4" />
 
-            <Link className="btn-primary inline-block" href={'/create-board'}>
-                Create new Board &rarr;
-            </Link>
+                {/* <Link
+                    className="btn-primary inline-block mb-6 px-4 py-2 rounded text-white hover:bg-blue-700 transition-colors"
+                    href={'/create-board'}
+                >
+                    Create New Board &rarr;
+                </Link> */}
 
-            {/* Displaying users' boards */}
-            <div className="flex mt-6 gap-4">
-                {boards.map(board => (
-                    <div key={board.id} className="flex items-start">
-                        <div className="flex p-4 border rounded shadow hover:bg-gray-10">
-                        <Link key={board.id} href={`/users/${user?.uid}/boards/${board.id}`}>
-                            {board.name}
-                        </Link>
- 
-                        <Options boardId={board.id} 
-                                onDelete={() =>handleDelete(board.id)} 
-                                onEdit={async () => {
-                                    console.log("Editing board...");
-                                    // Add edit logic here, change 
-                                    }}/>
+                {/* Displaying users' boards */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                    {boards.map((board) => (
+                        <div
+                            key={board.id}
+                            className="relative bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow p-6 flex flex-col"
+                        >
+                            {/* Options Button */}
+                            <div className="absolute top-1 right-2">
+                                <Options
+                                    boardId={board.id}
+                                    onDelete={() => handleDelete(board.id)}
+                                    onEdit={async () => {
+                                        console.log("Editing board...");
+                                        // to be implemented
+                                    }}
+                                />
+                            </div>
+
+                            {/* Board Name */}
+                            <Link href={`/users/${user?.uid}/boards/${board.id}`} className="mt-2">
+                                <h2 className="text-2xl font-bold text-gray-800">
+                                    {board.name}
+                                </h2>
+
+                                {/* Underline */}
+                                <div className="w-full h-1 bg-blue-300 mt-2 rounded"></div>
+
+                                {/* Board Description */}
+                                <p className="text-gray-600 mt-4 flex-1">
+                                    {board.description || "No description provided."}
+                                </p>
+                            </Link>
                         </div>
-                        
-                    </div>
-                ))}
+                    ))}
+                </div>
             </div>
-        </div>
         </ProtectedRoute>
     );
 }<End of file>
@@ -179,7 +219,11 @@ app/register/page.tsx:
 import Register from '@/components/authentication/Register';
 
 export default function RegisterPage() {
-    return <Register/>;
+    return (
+        <div className='h-[80vh] mx-auto my-auto'>
+            <Register/>
+        </div>
+    );
 }<End of file>
 
 app/create-board/page.tsx:
@@ -210,7 +254,7 @@ export default function CreateBoardPage() {
     }
 
     return (
-        <div>
+        <div className="p-2">
             <form action={handleSubmit} className="max-w-xs block">
                 <h1 className="text-2xl mb-3">Create new board</h1>
                 <input type="text" name="name" placeholder="Board name" className="rounded"/>
@@ -227,7 +271,7 @@ app/layout.tsx:
 import "./globals.css";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { AuthProvider} from '@/app/contexts/AuthContext';
+import { AuthProvider } from '@/app/contexts/AuthContext';
 import Header from "@/components/Header";
 
 const geistSans = Geist({
@@ -241,8 +285,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Create Next App",
-  description: "Generated by create next app",
+  title: "Trello Clone",
+  description: "A Trello-like application built with Next.js and Tailwind CSS",
 };
 
 export default function RootLayout({
@@ -250,14 +294,16 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+
+
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased flex flex-col h-screen overflow-hidden`}
       >
         <AuthProvider>
           <Header/>
-          <main className="m-3 bg-gray-100 rounded">{children}</main>
+          <main className="flex-1 flex overflow-x-auto bg-gray-100 p-4">{children}</main>
         </AuthProvider>
       </body>
     </html>
@@ -350,9 +396,11 @@ export type Card = {
     id: string;
     title: string;
     description?: string;
+    comments?: string[];
     columnId?: string;
     order: number;
     createdAt?: any;
+    updatedAt?: any;
 }
 
 type ColumnInput = Omit<ColumnType, 'id' | 'createdAt'>;
@@ -536,13 +584,15 @@ export async function getCards(userId: string, boardId: string) : Promise<Card[]
 app/actions/cardActions.ts:
 <Start of file>
 import { db } from "../utils/firebaseConfig";
-import { deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import { deleteDoc, doc, updateDoc, getDoc, collection, query } from 'firebase/firestore';
 
 type UpdateCardData = {
     columnId?: string;
     order?: number;
     title?: string;
     description?: string;
+    comments?: string[];
+    updatedAt?: any;
 }
 
 export async function updateCard(userId: string, boardId: string, cardId: string, data:UpdateCardData) {
@@ -557,6 +607,23 @@ export async function deleteCard(userId: string, boardId: string, cardId:string)
 
     const cardDocRef = doc(db, `users/${userId}/boards/${boardId}/cards/${cardId}`);
     await deleteDoc(cardDocRef);
+}
+
+export async function getCard(userId: string, boardId: string, cardId: string) {
+    if(!userId) return;
+
+    const cardDocRef = doc(db, `users/${userId}/boards/${boardId}/cards`, cardId);
+    const snapshot = await getDoc(cardDocRef);
+
+
+    if(!snapshot.exists()) {
+        throw new Error("No such board found.");
+    }
+
+    return {
+        id: snapshot.id,
+        ...snapshot.data(),
+    }
 }<End of file>
 
 app/page.tsx:
@@ -589,26 +656,18 @@ export default function Home() {
 
 app/globals.css:
 <Start of file>
+/* app/globals.css */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
-*/ body {
+body {
   color: var(--foreground);
   background: var(--background);
   font-family: Arial, Helvetica, sans-serif;
+  /* Ensure the body takes full height and doesn't introduce extra scroll */
+  height: 100vh;
+  overflow: hidden;
 } 
 
 @layer components {
@@ -618,6 +677,10 @@ app/globals.css:
 
   .btn-secondary {
     @apply bg-gray-500 text-white py-2 px-4 rounded hover:bg-gray-700;
+  }
+
+  .btn-red {
+    @apply text-white bg-red-500 hover:bg-red-700 py-2 px-4 rounded;
   }
 
   .btn-boards {
@@ -631,7 +694,6 @@ app/globals.css:
   .alert {
     @apply bg-red-500 text-white font-bold py-3 px-4 rounded;
   }
-
 }
 
 .btn-google {
@@ -641,6 +703,25 @@ app/globals.css:
 
 .center {
   text-align: center;
+}
+
+/* Optional: Customize scrollbars for better UX */
+::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1; 
+}
+
+::-webkit-scrollbar-thumb {
+  background: #888; 
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555; 
 }<End of file>
 
 app/login/page.tsx:
@@ -648,7 +729,11 @@ app/login/page.tsx:
 import Login from '@/components/Login';
 
 export default function LoginPage() {
-    return <Login/>;
+    return (
+        <div className='h-[80vh] mx-auto my-auto'>
+            <Login/>
+        </div>
+    );
 }<End of file>
 
 script.sh:
@@ -671,7 +756,7 @@ find "$FOLDER" -type f ! -path "$OUTPUT_FILE" | while IFS= read -r FILE; do
   
   # Exclude .ico files
   if [[ "$FILE" == *.ico ]]; then
-    echo "Skipping file with .ico extension: $FILE"
+    echo "Skipping file: $FILE"
     continue
   fi
   
@@ -710,6 +795,23 @@ export default function Options({ onEdit, onDelete, specialAction } : OptionProp
     const [isOpen, setIsOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement | null>(null); // reference for detecting outside clicks
 
+    useEffect(() =>{
+        function handleClickOutside(event: MouseEvent) {
+            if(menuRef.current && !menuRef.current.contains(event.target as Node)) {
+                setIsOpen(false);
+            }
+        }
+
+        if(isOpen) {
+            document.addEventListener("mousedown", handleClickOutside);
+        }
+
+        // cleanup on unmount
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+        }
+    }, [isOpen]);
+
     function toggleMenu() {
         setIsOpen((prev) => !prev); // cool way to avoid checking the state first, give me the opposite state of whatever it is
     };
@@ -733,46 +835,28 @@ export default function Options({ onEdit, onDelete, specialAction } : OptionProp
         }
     };
 
-    useEffect(() =>{
-        function handleClickOutside(event: MouseEvent) {
-            if(menuRef.current && !menuRef.current.contains(event.target as Node)) {
-                setIsOpen(false);
-            }
-        }
-
-        if(isOpen) {
-            document.addEventListener("click", handleClickOutside);
-        }
-
-        // cleanup on unmount
-        return () => {
-            document.removeEventListener("click", handleClickOutside);
-        }
-    }, [isOpen]);
-
     return (
-        <div className='relative inline-block' ref={menuRef}>
+        <div className='relative' ref={menuRef}>
             <button onClick={toggleMenu}
                 className='flex items-center justify-center w-6 h-6 text-gray-500 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-0 rounded box-border'
                 aria-haspopup='true'
-                // aria-expanded={isOpen}
                 aria-label='Options'>
-                <span className='flex items-center justify-center h-full text-xl leading-none align-middle pb-3'>...</span>
+                <span className='flex items-center pb-3 justify-center h-full text-xl leading-none align-middle'>...</span>
             </button>
 
-            {/* toggled menu */}
+            {/* Toggled Menu */}
             {isOpen && (
-                <div className='flex flex-col absolute left-0 mt-1 bg-white border rounded shadow-lg z-10'>
-                    <button onClick={handleEdit} className="block w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100">
+                <div className='absolute right-0 mt-1 bg-white border rounded shadow-lg z-10 w-24'>
+                    <button onClick={handleEdit} className="block w-full px-2 py-1 text-left text-sm text-gray-700 hover:bg-gray-100">
                         Edit
                     </button>
-                    <button onClick={handleDelete} className="flex w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-100">
+                    <button onClick={handleDelete} className="block w-full px-2 py-1 text-left text-sm text-red-600 hover:bg-red-100">
                         Delete
                     </button>
                     {specialAction && (
-                        <button onClick={handleSpecialAction} className="flex w-full px-4 py-2 text-left text-sm text-blue-600 hover:bg-blue-100 whitespace-nowrap">
-                        Clear Cards
-                    </button>
+                        <button onClick={handleSpecialAction} className="block w-full px-2 py-1 text-left text-sm text-blue-600 hover:bg-blue-100">
+                            Clear Cards
+                        </button>
                     )}
                 </div>
             )}
@@ -783,6 +867,7 @@ export default function Options({ onEdit, onDelete, specialAction } : OptionProp
 components/Card.tsx:
 <Start of file>
 import { Card as CardType} from "@/app/actions/boardActions";
+import { useRouter } from 'next/navigation';
 import Options from "./options/Options";
 
 type CardProps = {
@@ -792,6 +877,7 @@ type CardProps = {
 }
 
 export default function Card({ boardId, card, onDelete } : CardProps) {
+    const router = useRouter();
 
     async function handleDelete(){
         if (typeof onDelete !== 'function') {
@@ -805,9 +891,13 @@ export default function Card({ boardId, card, onDelete } : CardProps) {
         // TO-DO: Implement redirecting to open the card menu
     }
 
+    function handleOpenCard() {
+        router.push(`?cardId=${card.id}`);
+    }
+
     return (
-        <div className="flex items-center justify-between border bg-white my-2 p-3 rounded-md">
-            <span className="flex-auto">{card.title}</span>
+        <div className="flex items-start justify-between border bg-white p-3 rounded-md shadow hover:bg-gray-50">
+            <span onClick={handleOpenCard} className="flex-auto break-words">{card.title}</span>
             <Options boardId={boardId} onEdit={() => handleEdit()} onDelete={handleDelete}/>
         </div>
     );
@@ -1037,13 +1127,187 @@ export default function Login() {
     );
 }<End of file>
 
+components/cards/CardDetail.tsx:
+<Start of file>
+'use client';
+
+import { Card } from "@/app/actions/boardActions";
+import { updateCard } from "@/app/actions/cardActions";
+import { useAuth } from "@/app/contexts/AuthContext";
+import { serverTimestamp } from "firebase/firestore";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+
+
+type CardDetailProps = {
+    boardId: string;
+    card: Card;
+}
+
+function CardDetail({ boardId, card } : CardDetailProps){
+    const [ isEditingTitle, setIsEditingTitle ] = useState(false);
+    const [ isAddingComment, setIsAddintComment ] = useState(false);
+    
+    const [ cardTitle, setCardTitle ] = useState<string>(card.title);
+    const [ cardDescription, setCardDescription ] = useState<string | undefined>(card.description);
+    const [ cardComments, setCardComments] = useState<string[] | undefined>(card.comments);
+    const [ newComment, setNewComment] = useState<string>("");
+
+    const router = useRouter();
+    const { userId } = useAuth();
+
+
+    function toggleTitleEdit() {
+        setIsEditingTitle((prev) => !prev);
+    }
+
+    function cancelEditingCard() {
+        router.back();
+    }
+
+    async function handleSaveCard() {
+        if(!userId) return;
+
+        const data: Record<string, any> = {};
+
+        if(cardTitle !== card.title) {
+            data.title = cardTitle;
+        }
+
+        if(cardDescription !== card.description) {
+            data.description = cardDescription;
+        }
+
+        if(JSON.stringify(cardComments) !== JSON.stringify(card.comments)) {
+            data.comments = cardComments;
+        }
+
+        data.updatedAt = serverTimestamp();
+
+        await updateCard(userId, boardId, card.id, data);
+        router.back();
+    }
+
+    function toggleAddingComment(){
+        setIsAddintComment(true);
+    }
+
+    function handleDeleteComment(index: number) {
+        setCardComments((prev) => {
+            if(!prev) return prev;
+            const newComments = [...prev];
+            newComments.splice(index, 1);
+            return newComments;
+        });
+    }
+
+    return (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100]">
+            <div className="p-6 max-w-xl bg-white w-[40vh] rounded-md">
+                <div>
+                {isEditingTitle ? (
+                <div className="mb-1">
+                    <input
+                        className="border w-full rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        autoFocus
+                        value={cardTitle}
+                        onChange={(e) => setCardTitle(e.currentTarget.value)}
+                        onBlur={() => toggleTitleEdit()}
+                        onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                                setCardTitle(e.currentTarget.value);
+                                toggleTitleEdit();
+                            }
+                            if (e.key === "Escape") {
+                                toggleTitleEdit();
+                            }
+                        }}
+                    />
+                </div>
+                ) : (
+                    <h1 onClick={toggleTitleEdit} className="font-bold text-xl mb-4">{cardTitle}</h1>
+                )}
+                    
+                <textarea className="mt-1 w-full h-32 rounded-md border p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        value={cardDescription || ""} 
+                        placeholder="Write description"
+                        onChange={(e) => setCardDescription(e.currentTarget.value)}>
+                    {cardDescription}
+                </textarea>
+                    
+                <hr className="mt-4"></hr>
+                <div className="mt-2">
+                    <div className="">
+                        <h2 className="font-semibold text-md my-2">Comments</h2>
+                        {cardComments && cardComments.length > 0 ? (
+                            cardComments.map((comment, index) => (
+                                <div key={index} className="flex my-2">
+                                    <p className="text-wrap p-2 my-2 border shadow-md shadow-blue-100 rounded hover:shadow-red-200">{comment}</p>
+                                    <button onClick={() => handleDeleteComment(index)} className="ml-2 hover:text-3xl hover:ml-1">🗑️</button>
+                                </div>
+                            ))
+                        ) : (
+                            <span>There are no comment here</span>
+                        )}
+                    </div>
+
+                    {isAddingComment ? (
+                        <div onBlur={() => {
+                            setIsAddintComment(false);
+                            setNewComment("");
+                        }}>
+                            <input
+                                autoFocus
+                                type="text"
+                                className="w-full rounded-md border p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                placeholder="Type your comment and hit Enter"
+                                value={newComment}
+                                onChange={(e) => setNewComment(e.currentTarget.value)}
+                                onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                    // Append the new comment to existing comments (or create an array if none exist)
+                                    setCardComments((prev) =>
+                                    prev ? [...prev, newComment] : [newComment]
+                                    );
+                                    setNewComment("");
+                                    setIsAddintComment(false);
+                                }
+                                }}
+                            />
+                        </div>
+                    ) : (
+                        <button onClick={toggleAddingComment} className="mt-4 btn btn-boards"> + Add comment</button> 
+                    )}
+                    <hr className="mt-4 border-1 border-gray-500"></hr>
+                </div>
+            </div>
+
+                <div className="mt-4 flex justify-between items-center">
+                    <span className="text-xs text-gray-400">{card.updatedAt ? 
+                    (`Updated at: ${new Date(card.updatedAt.seconds * 1000).toLocaleString()}`) 
+                    : (`Created at: ${new Date(card.createdAt.seconds * 1000).toLocaleString()}`)}</span>
+
+                    <div className="flex justify-end">
+                    <button onClick={cancelEditingCard} type="button" className="mr-1 btn btn-red">Cancel</button>
+                    <button onClick={handleSaveCard} type="button" className="ml-1 btn btn-primary">Save</button>
+                </div>
+            </div>
+                
+        </div>
+                
+        </div>
+    );
+}
+
+export default CardDetail;<End of file>
+
 components/Board.tsx:
 <Start of file>
 import { ReactSortable } from 'react-sortablejs';
 import Column from './Column';
 import FormColumn from "./forms/FormColumn";
 import { Board as BoardType, Card } from '@/app/actions/boardActions';
-import { useState } from 'react';
+import { Dispatch, SetStateAction, useState } from 'react';
 import { updateColumn } from '@/app/actions/columnActions';
 import { useAuth } from '@/app/contexts/AuthContext';
 import { Column as ColumnType } from '@/app/actions/columnActions';
@@ -1055,11 +1319,12 @@ type BoardProps = {
     board: BoardType;
     columns: ColumnType[];
     cards: Card[];
+    setCards: Dispatch<SetStateAction<Card[]>>;
 }
 
-export default function Board({ boardId, columns, cards } : BoardProps) {
+export default function Board({ boardId, columns, cards, setCards } : BoardProps) {
     const [boardColumns, setBoardColumns] = useState<ColumnType[]>(columns);
-    const [boardCards, setBoardCards] = useState<Card[]>(cards);
+    // const [boardCards, setBoardCards] = useState<Card[]>(cards);
 
     const { userId } = useAuth();
 
@@ -1070,12 +1335,12 @@ export default function Board({ boardId, columns, cards } : BoardProps) {
             const columnToDelete = boardColumns.find(col => col.id === columnId);
             if (!columnToDelete) return;
     
-            const cardsInColumn = boardCards.filter(card => card.columnId === columnId);
+            const cardsInColumn = cards.filter(card => card.columnId === columnId);
             await Promise.all(cardsInColumn.map(card => deleteCard(userId, boardId, card.id)));
     
             await deleteColumn(userId, boardId, columnToDelete.id);
     
-            setBoardCards(prev => prev.filter(card => card.columnId !== columnId));
+            setCards(prev => prev.filter(card => card.columnId !== columnId));
             setBoardColumns(prev => prev.filter(col => col.id !== columnId));
         } catch (error) {
             console.error("Error deleting column:", error);
@@ -1084,7 +1349,7 @@ export default function Board({ boardId, columns, cards } : BoardProps) {
     }
 
     return (
-        <div className="flex gap-4 p-4 bg-gray-100 h-screen overflow-x-auto overflow-y-hidden">
+        <div className="flex flex-row gap-4 min-h-[83vh] h-full overflow-x-auto items-start">
             <ReactSortable
                 list={boardColumns}
                 setList={(sorted) => {
@@ -1094,22 +1359,22 @@ export default function Board({ boardId, columns, cards } : BoardProps) {
                     })
                 }}
                 group="columns"
-                className='flex gap-4'
+                className='flex flex-row gap-4 items-start'
             >
                 {boardColumns.map((column) => (
                     <Column 
                         key={column.id}
                         boardId={boardId} 
                         column={column}
-                        cards={boardCards.filter((card) => card.columnId === column.id)}
-                        setCards={setBoardCards}
+                        cards={cards.filter((card) => card.columnId === column.id)}
+                        setCards={setCards}
                         onDeleteColumn={handleDeleteColumn}
                     />
                 ))}
+                <FormColumn boardId={boardId} onColumnCreated={(newCol) => {
+                    setBoardColumns([...boardColumns, newCol]);
+                }} />
             </ReactSortable>
-            <FormColumn boardId={boardId} onColumnCreated={(newCol) => {
-                setBoardColumns([...boardColumns, newCol]);
-            }} />
         </div>
     );
 }<End of file>
@@ -1125,12 +1390,18 @@ import { getBoard, Board as BoardType} from '@/app/actions/boardActions';
 import { getColumns } from '@/app/actions/boardActions';
 import { getCards, Card } from '@/app/actions/boardActions';
 import { Column } from '@/app/actions/columnActions';
+import { useSearchParams, useRouter } from 'next/navigation';
 
 // Component imports
 import Loading from '@/components/Loading';
 import Board from '../Board';
 import FormColumn from '../forms/FormColumn';
+import CardDetail from '../cards/CardDetail';
 import { useAuth } from '@/app/contexts/AuthContext';
+
+import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { db } from '@/app/utils/firebaseConfig';
+
 
 type BoardClientProps = {
     boardId: string,
@@ -1143,6 +1414,8 @@ export default function BoardClient({ boardId } : BoardClientProps) {
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
     const { userId } = useAuth();
+    const searchParams = useSearchParams();
+    const cardId = searchParams.get('cardId');
 
     useEffect(() => {
         async function fetchData() {
@@ -1153,11 +1426,8 @@ export default function BoardClient({ boardId } : BoardClientProps) {
             try {
                 const boardData = await getBoard(userId, boardId);
                 const columnData = await getColumns(userId, boardId);
-                const cardsData = await getCards(userId, boardId);
-
                 setBoard(boardData);
                 setColumns(columnData);
-                setCards(cardsData);
             } catch (err) {
                 console.error("Failed to fetch data for board: ", err);
                 setError("Failed to fetch data for board in BoardClient.");
@@ -1165,16 +1435,46 @@ export default function BoardClient({ boardId } : BoardClientProps) {
                 setLoading(false);
             }
         }
-
         fetchData();
     }, [userId, boardId]);
+
+    useEffect(() => {
+      if(!userId) return;
+
+      const cardsRef = collection(db, `users/${userId}/boards/${boardId}/cards`);
+      const q = query(cardsRef, orderBy("order"));
+
+      function unsubscribe() {
+        onSnapshot(q, (snapshot) => {
+          const updatedCards = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+          })) as Card[];
+          setCards(updatedCards);
+        },
+        (err) => {
+          console.error("Error fetching cards in real time: ", err);
+        });
+      } 
+
+      unsubscribe();
+    }, [userId, boardId]);
+
+    function fetchModalCard() : Card | null {
+      if(cardId) {
+        const foundCard = cards.find(card => card.id === cardId);
+        return foundCard || null;
+      } else {
+        throw new Error("You haven't clicked on card");
+      }
+    }
 
     if(loading) return <Loading/>;
     if(error) return <p>{error}</p>;
     if(!board) return <p>Board not found</p>;
 
     return (
-        <div>
+        <div className='flex-none w-full'>
       {/* The board info at the top */}
       <h1 className="text-4xl mb-4">{board.name}</h1>
       <p className="text-gray-600">{board.description}</p>
@@ -1201,8 +1501,14 @@ export default function BoardClient({ boardId } : BoardClientProps) {
             boardId={boardId}
             columns={columns}
             cards={cards}
+            setCards={setCards}
           />
+          
         )}
+        {cardId && (() => {
+          const fetchedCard = fetchModalCard(); // fetch the exact card from the cards list
+          return fetchedCard ? <CardDetail boardId={boardId} card={fetchedCard}/> : null;
+        })()}
       </section>
       </div>
     );
@@ -1222,37 +1528,35 @@ export default function Header() {
     const { loading }  = useAuth();
     const user = auth.currentUser;
 
-    if(loading || !auth) return null;
+    if(loading || !user) return null;
 
-        return (
-            <>
-            {user && (<header className="m-3 bg-gray-500 rounded p-4 flex justify-between items-center text-white">
-                <h1 className="text-2xl font-bold">
-                  <Link href="/home" className="logo hover:underline">
-                    Trello Clone
-                  </Link>
-                  <Link href='/create-board' className='btn btn-primary mx-5'>Create</Link>
-                  <Link href='/home' className='btn btn-boards'>Boards</Link>
-                </h1>
-                
-                <div className="flex space-x-4 items-center">
-                  {/* Display Name */}
-                  {user?.displayName && <span className='font-medium mx-2'>Hi, {user?.displayName}</span>}
-                  <LogoutButton/>
-                </div>
-            </header>)}
-            </>
-        );
+    return (
+      <header className="sticky top-0 z-50 bg-gray-800 p-4 flex justify-between items-center text-white shadow-md">
+          <h1 className="text-2xl font-bold flex items-center space-x-5">
+              <Link href="/home" className="logo hover:underline">
+                  Trello Clone
+              </Link>
+              <Link href='/create-board' className='btn-primary px-3 py-1 rounded'>Create</Link>
+              <Link href='/home' className='btn-boards px-3 py-1 rounded'>Boards</Link>
+          </h1>
+          
+          <div className="flex space-x-4 items-center">
+              {user?.displayName && <span className='font-medium mx-2'>Hi, {user.displayName}</span>}
+              <LogoutButton />
+          </div>
+      </header>
+  );
 }<End of file>
 
 components/Loading.tsx:
 <Start of file>
 export default function Loading() {
     return (
-        <div className="flex items-center justify-center h-screen bg-gray-100">
+        <div className="fixed inset-0 flex items-center justify-center h-screen bg-gray-100 z-50">
             <div className="flex flex-col items-center">
                 {/* SVG Spinner */}
                 <img src="/4.svg" alt="Loading..." className="h-16 w-16"/>
+                <span className="mt-1 text-gray-700">Loading...</span>
             </div>
         </div>
     );
@@ -1265,10 +1569,10 @@ import Link from 'next/link';
 
 export default function LandingPage() {
     return (
-        <div className="min-h-screen bg-gray-100 flex flex-col justify-center items-center">
+        <div className=" bg-gray-100 flex flex-col justify-center items-center mx-auto">
             <div className="text-center">
                 <h1 className="text-6xl font-bold mb-6 text-gray-800">Trello Clone</h1>
-                <h2 className="text-2xl font-medium mb-10 text-gray-600">For MVP Masters Projects</h2>
+                <h2 className="text-2xl font-medium mb-10 text-gray-600">For MVP Masters' Projects</h2>
                 <div className="flex space-x-6 justify-center mb-8">
                     <Link href="/login">
                         <button className="btn-primary text-lg px-8 py-4">Login</button>
@@ -1479,7 +1783,7 @@ import { Dispatch, SetStateAction, useEffect } from "react";
 import { useState, useRef } from 'react';
 import { Card as CardType } from "@/app/actions/boardActions";
 import { createCard } from "@/app/actions/boardActions";
-import { Column as ColumnType, deleteColumn, updateColumn } from "@/app/actions/columnActions";
+import { Column as ColumnType, updateColumn } from "@/app/actions/columnActions";
 import { deleteCard, updateCard } from "@/app/actions/cardActions";
 import { useAuth } from "@/app/contexts/AuthContext";
 import Card from "./Card";
@@ -1508,6 +1812,7 @@ export default function Column({ boardId, column, cards, setCards, onDeleteColum
         }
     }, [isEditing]);
 
+
     function handleAddCard() {
         setIsAddingCard(true);
     }
@@ -1526,7 +1831,8 @@ export default function Column({ boardId, column, cards, setCards, onDeleteColum
             order: cards.length,
         });
 
-        setCards((prevState) => [...prevState, newCardData]);
+        // setCards((prevState) => [...prevState, newCardData]); removed because of the onSnapshot listener, since just createCard
+        // will trigger the listener and will update the state everywhere
 
         setNewCardTitle("");
         setIsAddingCard(keepAdding);
@@ -1632,16 +1938,18 @@ export default function Column({ boardId, column, cards, setCards, onDeleteColum
     }
 
     return (
-        <div className="w-80 min-w-[300px] max-w-[400px] shadow-md bg-white rounded-md p-3 flex flex-col">
+        <div className="flex flex-col h-auto w-80 bg-white rounded-md shadow-md p-3">
             {/* Header */}
-            <div className="flex justify-between mb-2">
+            <div className="flex justify-between items-center mb-2">
                 {isEditing ? (
                     <input
                         className="border p-2 w-full rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                         value={columnName}
                         ref={inputRef}
                         onChange={(e) => setColumnName(e.target.value)}
-                        onBlur={() => handleUpdateColumn()}
+                        onBlur={() => {
+                            handleUpdateColumn();
+                        }}
                         onKeyDown={(e) => {
                             if (e.key === "Enter") handleUpdateColumn();
                             if (e.key === "Escape") setIsEdditing(false);
@@ -1654,7 +1962,7 @@ export default function Column({ boardId, column, cards, setCards, onDeleteColum
             </div>
 
             {/* Cards List */}
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 mb-2">
                 <ReactSortable
                     list={cards}
                     setList={(updated) => {
