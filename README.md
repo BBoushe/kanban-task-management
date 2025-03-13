@@ -20,5 +20,5 @@ A real-time, Trello-like application for task management, built with Next.js, Fi
    yarn dev
    ```
 
-	5.	Open your browser at http://localhost:3000.
+5.	Open your browser at http://localhost:3000.
 
