@@ -12,16 +12,16 @@ A real-time, Trello-like application for task management, built with Next.js, Fi
 ## Demo
 **Important note**: As of the most recent push, for testing purposes I recommend registering an account normaly, instead of using Google because of a problem with Firebase. 
 
-### Thing 1
+#### Basic Workflow
 ![Alt text](demos/output.gif?raw=true "Basic Workflow Demo")
 
-### Thing 1
+#### Drag and drop, sorting, detailed card view
 ![Alt text](demos/output2.gif?raw=true "Sorting, Rearranging, Card Functionality, Card View")
 
-### Thing 1
+#### Register constraints
 ![Alt text](demos/output3.gif?raw=true "Register constraints")
 
-### Thing 1
+#### Register with Google
 ![Alt text](demos/output4.gif?raw=true "Register with Google")
 
 ## Getting Started
